@@ -1,0 +1,446 @@
+#include <math.h>
+#include <stdlib.h>
+#include <signal.h>
+#include <stdio.h>
+#include <time.h>
+#include <unistd.h>
+#include <getopt.h>
+
+#include "int-aloha.h"
+#include "protocols.h"
+#include "vars.h"
+#include "dataParser.h"
+
+void INThandler(int);
+/* Performs the computation for emulating the suite of protocols
+for a single slot, and adjusting the weights. */
+void update_weights(struct protocol_suite* suite, struct meta_slot current_slot)
+{
+	/* If there is no packet queued for this slot, consider all protocols to be correct
+	and thus the weights will not change. */
+	if (current_slot.packet_queued) {
+		/* z represents the correct decision for this slot - transmit if the channel
+		is idle (1.0) or defer if it is busy (0.0) */
+		double z = (!current_slot.channel_busy) ? 1.0 : 0.0;
+
+		for (int p = 0; p < suite->num_protocols; ++p) {
+			/* d is the decision of this component protocol - between 0 and 1 */
+			double d = suite->protocols[p].emulator(suite->protocols[p].parameter, 
+				current_slot.slot_num, suite->last_slot);
+			suite->weights[p] *= exp(-(suite->eta) * fabs(d - z));
+		}
+
+		/* Normalize the weights */
+		double s = 0;
+		for (int p = 0; p < suite->num_protocols; ++p) {
+			s += suite->weights[p];
+		}
+
+		for (int p = 0; p < suite->num_protocols; ++p) {
+			suite->weights[p] /= s;
+		}
+	}
+
+	suite->last_slot = current_slot;
+}
+
+void init_protocol_suite(struct protocol_suite *suite, int num_protocols, double eta)
+{
+	int p;
+	suite->num_protocols = num_protocols;
+	suite->best_protocol = -1;
+	suite->slot1_protocol = -1;
+	suite->slot2_protocol = -1;
+	suite->active_slot = 0;
+
+	suite->protocols = (struct protocol*)calloc(num_protocols, sizeof(struct protocol));
+	suite->weights = (double*)malloc(sizeof(double) * num_protocols);
+
+	for (p=0; p < num_protocols; ++p) {
+		suite->weights[p] = 1.0 / num_protocols;
+	}
+
+	suite->eta = eta;
+	suite->last_slot.slot_num = -1;
+	suite->last_slot.packet_queued = 0;
+	suite->last_slot.transmitted = 0;
+	suite->last_slot.channel_busy = 0;
+}
+
+void int_aloha_init(struct debugfs_file * df, struct protocol_suite *suite)
+{
+//	printf("%d\n", suite->num_protocols);
+	if (suite->num_protocols < 1) {
+		return;
+	}
+
+	/* Best protocol could be already initialized based on predictions/heuristics */
+	if (suite->best_protocol < 0) {
+		/* Select the best protocol based on weights. At this point, they
+		should be the same, so the first protocol will be selected. */
+		int p = 0;
+		double w = suite->weights[0];
+		for (int i = 1; i < suite->num_protocols; ++i) {
+			if (suite->weights[i] > w) {
+				p = i;
+				w = suite->weights[i];
+			}
+		}
+		suite->best_protocol = p;
+	}
+
+	
+	struct options opt;
+	init_options(&opt);
+	
+	printf("first : 1\n");
+	opt.do_up = " ";
+	opt.load = "2";
+	opt.name_file = suite->protocols[suite->best_protocol].fsm_path;
+	parser(df, &opt);
+	sleep(3);
+	
+//	printf("first : 2\n");
+	
+	suite->slot1_protocol = suite->best_protocol;
+	suite->active_slot = 2;
+	opt.active = "2";
+	activeBytecode(df,&opt);
+	sleep(3);
+	
+//	printf("first : 3\n");
+	
+}
+
+FILE * log_int_aloha;
+void INThandler(int sig)
+{
+    fclose(log_int_aloha);
+    printf("Close correctely");
+    exit(0);
+}
+
+/**
+ * name file by argument option
+ * CTRL-C handle with file close
+ */
+void int_aloha_loop(struct debugfs_file * df, struct protocol_suite *suite, struct logic_options * current_options)
+{
+	int i, j;
+	char iface_wlan[128];
+	int_aloha_init(df, suite);
+
+	unsigned long int param_12 = shmRead16(df, B43_SHM_SHARED, (0x1F*2+PARAMETER_ADDR_BYTECODE_2));
+	unsigned long slot_num = 0;
+	float pcol = 0;
+	unsigned long channel_busy_sum = 0;
+        unsigned int channel_busy_seven = 0;
+	unsigned int s = 0;
+	unsigned int save_busy[current_options->slot_window/param_12]={0};
+	time_t rawtime;
+	struct tm * timeinfo;
+	char buffer[80];
+	
+	signal(SIGINT, INThandler);
+	
+	if (strcmp(current_options->log_file_name,"")==0){
+		current_options->log_file_name="file_log.csv";
+	}
+	log_int_aloha = fopen(current_options->log_file_name, "w+");
+	j = 0;
+
+	FILE *fp;	
+	fp = popen("ifconfig | grep '192.168.3' | cut -d: -f2 | awk '{print $1}'", "r");
+	//ifconfig | grep -e '192.168.3' | cut -d: -f2 | awk '{ print $1}'
+	if (fp == NULL) {
+	      printf("Failed to run command\n" );
+	      exit;
+	}
+	fscanf(fp, "%s", iface_wlan);
+	fclose(fp);
+	
+	unsigned int slot_count = 0x000F & shmRead16(df, B43_SHM_REGS, COUNT_SLOT);
+        unsigned int prev_slot_count;
+        unsigned int seven_slots_prev = 0;	
+	
+	while (1) {
+
+			usleep(7000);
+
+			prev_slot_count = slot_count & 0x0F;
+			slot_count = 0x000F & shmRead16(df, B43_SHM_REGS, COUNT_SLOT);
+			unsigned int packet_queued = shmRead16(df, B43_SHM_SHARED, PACKET_TO_TRANSMIT) & 0x00FF;
+			unsigned int transmitted  = shmRead16(df, B43_SHM_SHARED, START_TRANSMISSION) & 0x00FF;
+			unsigned int transmit_success = shmRead16(df, B43_SHM_SHARED, SUCCES_TRANSMISSION) & 0x00FF;
+			unsigned int transmit_other =shmRead16(df, B43_SHM_SHARED, OTHER_TRANSMISSION) & 0x00FF;
+			unsigned int channel_busy = (packet_queued & transmitted & ~transmit_success ) | transmit_other;
+			
+			// Debugging.
+			//printf("slot_count=%d\n", slot_count);
+			
+			unsigned int slot = prev_slot_count;
+			for (int j = 0; j < param_12; ++j) {                               
+                                printf("%d, %01x,%01x,%01x,%01x,%01x\n",
+						 slot, (packet_queued>>slot) & 0x0001, (transmitted>>slot) & 0x0001,
+						(transmit_success>>slot) & 0x0001, (transmit_other>>slot) & 0x0001, (channel_busy>>slot) & 0x0001);	
+                                
+				//struct meta_slot slot_data;
+				//slot_data.slot_num = slot_num++;
+				//slot_data.packet_queued = (packet_queued >> slot) & 1;
+				//slot_data.transmitted = (transmitted >> slot) & 1;
+				//slot_data.channel_busy = (channel_busy >> slot) & 1;
+				//update_weights(suite, slot_data);
+				slot_num++;
+				channel_busy_sum = channel_busy_sum + ((channel_busy >> slot) & 1);
+				channel_busy_seven = channel_busy_seven + ((channel_busy >> slot) & 1);
+				//printf("%d: slot %d, channel busy reg %02x, channel_busy value : %01x, channel busy sum : %d\n",
+				//		 slot_num, slot, channel_busy, (channel_busy>>slot) & 0x0001, channel_busy_sum);	
+				
+				
+				if (slot_num % param_12 == 0){
+					//printf("*******\nslot = %d, channel_busy_seven = %d\n******\n", slot_num, channel_busy_seven);
+                                        //printf("Slot %ld: pcol = %f, channel_busy_sum = %ld\n", slot_num, pcol, channel_busy_sum);
+					save_busy[s] = channel_busy_seven;
+					s++;
+					channel_busy_seven = 0;
+					
+					
+					//pcol = ((float)(channel_busy_sum) /(float) slot_num);
+					
+                               		if (s ==  current_options->slot_window/param_12){
+						//printf("%d %d %d %d %d %d %d %d %d %d %d %d\n", save_busy[0], save_busy[1], save_busy[2], save_busy[3], save_busy[4], save_busy[5], save_busy[6], save_busy[7], save_busy[8], save_busy[9], save_busy[10], save_busy[11]);
+						s = 0;
+                               		 }
+
+                               		if (slot_num > current_options->slot_window){
+                                        	channel_busy_sum = channel_busy_sum - save_busy[s];
+                                       		printf("channel_busy_sum = %d, s = %d, save_s = %d\n", channel_busy_sum, s, save_busy[s]);
+						pcol = ((float)(channel_busy_sum) / (current_options->slot_window));
+                                        //	printf("Slot %ld: pcol = %f, channel_busy_sum = %ld\n", slot_num, pcol, channel_busy_sum);
+				//		printf("s = %d, save_busy = %d\n", s, save_busy[s]);
+                               		 }
+					else{
+						pcol = ((float)(channel_busy_sum) /(float) slot_num);
+					}
+					printf("Slot %ld: pcol = %f, channel_busy_sum = %ld\n", slot_num, pcol, channel_busy_sum);
+					
+					time(&rawtime);
+        				timeinfo = localtime(&rawtime);
+        				strftime (buffer,80,"%G%m%d%H%M%S",timeinfo);
+					//printf("%s\n", buffer);
+					struct timeval tim;
+             				gettimeofday(&tim, NULL);
+             				double t1=tim.tv_sec+(tim.tv_usec/1000000.0);
+            				//printf("%.6lf seconds elapsed\n", t1);
+
+/*					if(!strcmp(opt->active, "1")){
+                                                printf("byte-code '1' \n");
+                                                param_to_set = param_to_set + PARAMETER_ADDR_BYTECODE_1;
+                                        }
+                                                                                                                                                                   232,18-41     62%
+                                                param_to_set = param_to_set + PARAMETER_ADDR_BYTECODE_1;
+                                        }
+                                        else{
+                                                if(!strcmp(opt->active, "2")){
+                                                printf("byte-code '2' \n");
+                                                param_to_set = param_to_set + PARAMETER_ADDR_BYTECODE_2;	
+
+
+*/			                unsigned long int param_14 = shmRead16(df, B43_SHM_SHARED, (0x11*2+PARAMETER_ADDR_BYTECODE_2));
+					float prm_14 = (float)param_14/65534;
+                                        unsigned long int  num_station = 1 + (log10(1-pcol)/log10(1-prm_14));
+					unsigned long int tau = 65534/num_station;
+					printf("num_sta= %d, pcoll= %f, prm_14= %f\n", num_station, pcol, prm_14);
+
+					// scrivo tau nel registo PRM_14
+//					shmWrite16(df, B43_SHM_SHARED, (0x11*2+PARAMETER_ADDR_BYTECODE_2), tau);
+//                                        printf("Slot %ld: pcol = %f, channel_busy_sum = %ld\n", slot_num, pcol, channel_busy_sum);
+                                        fprintf(log_int_aloha, "%s,%.6lf,%s,%f\n", buffer, t1, iface_wlan, pcol);
+                                        fflush(log_int_aloha);
+                                }
+/*
+                                void change_parameter(struct debugfs_file * df,  struct options * opt){
+                                int val_to_set = 0;
+                                int param_to_set = atoi(opt->change_param);
+
+                                switch (param_to_set){
+                                  case 10:
+                                    param_to_set = 0x16*2;
+                                    break;
+                                  case 11:
+                                    param_to_set = 0x21*2;
+                                    break;
+                                  case 12:
+                                    param_to_set = 0x1F*2;
+                                    break;
+                                  case 13:
+                                    param_to_set = 0x20*2;
+                                    break;
+                                  case 14:
+                                    param_to_set = 0x11*2;
+                                    break;
+                                  case 15:
+                                    param_to_set = 0x12*2;
+                                    break;
+                                  case 16:
+                                    param_to_set = 0x13*2;
+                                    break;
+                                  case 17:
+                                    param_to_set = 0x14*2;
+                                    break;
+                                  default:
+                                    printf("you can use only PRM from 10 to 17\n");
+                                    return;
+                                    break;
+                                }
+
+                                printf("Insert value for parameter %s : ", opt->change_param);
+                                scanf("%d", &val_to_set);
+
+                                if(val_to_set < 65536)
+                                {
+                                        if(!strcmp(opt->active, "1")){
+                                                printf("byte-code '1' \n");
+                                                param_to_set = param_to_set + PARAMETER_ADDR_BYTECODE_1;
+                                        }
+                                        else{
+                                                if(!strcmp(opt->active, "2")){
+                                                printf("byte-code '2' \n");
+                                                param_to_set = param_to_set + PARAMETER_ADDR_BYTECODE_2;
+                                        }
+                                        else{
+                                                printf("bytecode must be 1 or 2\n");
+                                                return;
+                                        }
+                                }
+                                //printf("write to address %x \n",param_to_set);
+                                shmWrite16(df, B43_SHM_SHARED, param_to_set, val_to_set);
+                        }
+                        printf("Insert value successful\n");
+  
+              }	
+*/				
+				slot = (++slot) % (param_12-1);
+
+				if (slot == (slot_count & 0x0F)) {
+//                			printf("Slot %ld: pcol = %f, channel_busy_sum = %ld\n", slot_num, pcol, channel_busy_sum);
+					break;
+				}
+
+		}
+
+		// This is where the active protocol will be updated once that is implemented
+
+		//printf("Slot %ld: pcol = %ld, channel_busy_sum = %ld\n", slot_num, pcol, channel_busy_sum);
+		//slot_num = 0;
+		//for (int i = 0; i < suite->num_protocols; ++i) {
+		//	printf("%s=%f ", suite->protocols[i].name, suite->weights[i]);
+		//}
+		
+		//siccome (1-tau)^(N-1)=pcoll, se si misura la pcoll e si assume ch etutti usino la stessa tau di accesso di puo' trovare N e quindi regolare tau = 1/N;
+		//quindi se osservo B slot, in cui ho colliso in C slot e ho trovato trasmissioni di altri in X slot;
+		//pcoll = (C+X)/B;
+		//printf("%d - %s\n",j, iface_wlan);
+		//j++;
+	}
+	fclose(log_int_aloha);
+}
+
+void init_options(struct logic_options * current_logic_options){
+	current_logic_options->protocol_1_path="";
+	current_logic_options->log_file_name="";
+}
+
+void int_aloha_usage(void)
+{
+	printf("%s",int_aloha_usageMenu);
+}
+
+
+void parseArgs(int argc, char **argv, struct logic_options * current_options)
+{
+	static int verbose_flag;
+	int option_index = 0;
+	
+	static struct option long_option[] = {
+	          {"tx-macaddress",		required_argument,	0,	'1' },
+		  {"channel",			required_argument,	0,	'2' },
+		  {"timeslot",			required_argument,	0,  	'3' },
+		  {0,				0,			0,	 0  }
+	};
+	init_options(current_options);
+
+	FILE * file;
+	int c;
+	int function_sesult;
+	/*
+	//autobytecode variable
+	  unsigned char addr[6];
+	    addr[0]=0xFF;
+	    addr[1]=0xFF;
+	    addr[2]=0xFF;
+	    addr[3]=0xFF;
+	    addr[4]=0xFF;
+	    addr[5]=0xFF;
+	  unsigned int timer[4];
+	    timer[0]=0;
+	    timer[1]=0;
+	    timer[2]=0;
+	    timer[3]=0;
+	  int source_file=0;
+	*/
+	if ( argc == 1){
+		int_aloha_usage();
+		exit(0);
+	}
+	while((c = getopt_long(argc, argv, "1:l:w:h", long_option, &option_index )) != -1) {
+	
+		switch(c) {
+		  
+		  case '1':
+			current_options->protocol_1_path =optarg; //atoi(optarg);
+			break;
+
+		  case 'l':
+			current_options->log_file_name=optarg;
+			break;
+	
+		  case 'h':
+			int_aloha_usage();
+			exit(0);
+			break;
+
+		  case 'w':
+			current_options->slot_window=atoi(optarg);
+			break;
+
+		  default:
+		       fprintf(stderr, "error check the help with option -h\n\n");
+		       exit(1);
+		       break;
+		}
+	} 
+}
+
+
+int main(int argc, char *argv[])
+{
+	struct protocol_suite suite;
+	struct logic_options current_options;
+	//printf("%s\n\n",argv[0]);
+	parseArgs(argc, argv, &current_options);
+
+	init_protocol_suite(&suite, 1, 1);
+	/*
+	suite.protocols[0].emulator = aloha_emulate;
+	struct aloha_param aloha_parameter0;
+	aloha_parameter0.persistance = 0.25;
+	suite.protocols[0].parameter = &aloha_parameter0;
+	*/
+	suite.protocols[0].name = "Aloha";
+	suite.protocols[0].fsm_path = current_options.protocol_1_path;
+
+	struct debugfs_file df;
+	init_file(&df);
+	int_aloha_loop(&df, &suite, &current_options);
+}
