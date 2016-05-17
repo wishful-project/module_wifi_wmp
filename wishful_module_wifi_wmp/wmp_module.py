@@ -9,7 +9,10 @@ import time
 import platform
 import numpy as np
 import iptc
+import csv
+
 from pytc.TrafficControl import TrafficControl
+
 
 import wishful_module_wifi
 import wishful_upis as upis
@@ -18,7 +21,8 @@ from agent_modules.wifi_wmp.wmp_structure import execution_engine_t
 from agent_modules.wifi_wmp.wmp_structure import radio_platform_t
 from agent_modules.wifi_wmp.wmp_structure import radio_info_t
 from agent_modules.wifi_wmp.wmp_structure import radio_program_t
-
+from agent_modules.wifi_wmp.wmp_structure import UPI_R
+from agent_modules.wifi_wmp.adaptation_module.libb43 import *
 
 import wishful_framework as wishful_module
 from wishful_framework.classes import exceptions
@@ -34,6 +38,37 @@ __email__ = "{gomenico.garlisi@cnit.it"
 # Used by local controller for communication with mac processor
 LOCAL_MAC_PROCESSOR_CTRL_PORT = 1217
 
+
+
+
+""" Store the current radio program information for WMP """
+class memory_slot_info_t:
+
+    radio_program_name = ''
+    """ The radio program name"""
+
+    radio_program_pointer = ''
+    """ The radio program pointer """
+
+
+
+""" Store the current radio program information for WMP """
+class WMP_info_t:
+    platform_info = "WMP"
+    """ platform specification"""
+
+    interface_id = "wlan0"
+
+    memory_slot_number = 2
+    """ number of memory slot for the platform """
+
+    memory_slot_active = 1
+    """ the memory slot active """
+
+    memory_slot_list = []
+
+
+
 @wishful_module.build_module
 class WmpModule(wishful_module_wifi.WifiModule):
     def __init__(self):
@@ -41,6 +76,18 @@ class WmpModule(wishful_module_wifi.WifiModule):
         self.log = logging.getLogger('WmpModule')
         self.channel = 1
         self.power = 1
+
+        self.SUCCESS = 0
+        self.PARTIAL_SUCCESS = 1
+        self.FAILURE = 2
+
+        #global b43_phy
+        self.b43_phy = None
+        global NIC_list
+        global radio_info
+        global WMP_status
+        WMP_status = WMP_info_t()
+        WMP_status.memory_slot_list = [memory_slot_info_t() for i in range(WMP_status.memory_slot_number)]
 
     """
     UPI_M implementation
@@ -145,207 +192,204 @@ class WmpModule(wishful_module_wifi.WifiModule):
         self.log.debug('NIC_list_string %s', str(NIC_list_string))
         return NIC_list_string
 
-    # @wishful_module.bind_function(upis.radio.get_radio_info)
-    # def get_radio_info(self, interface):
-    #     radio_id = interface
-    #     platform = "WMP"
-    #     self.log.debug('get_radio_info(): %s : %s' % ( str(radio_id), str(platform) ) )
-    #
-    #     radio_info = radio_info_t()
-    #     radio_info.platform_info = radio_platform_t()
-    #
-    #     radio_info.platform_info.platform_id = radio_id
-    #     radio_info.platform_info.platform = platform
-    #
-    #     #get available engines
-    #     exec_engine_current_list_name = []
-    #     exec_engine_current_list_pointer = []
-    #     with open('../agent_modules/wifi_wmp/wmp_repository/execution_engine_repository.csv') as csvfile:
-    #         reader = csv.DictReader(csvfile)
-    #         for row in reader:
-    #             #filter for WMP platform
-    #             #self.log.debug(" %s " %  str(row['execution_engine_name']) )
-    #             exec_engine_current_list_name.append(row['execution_engine_name'])
-    #             exec_engine_current_list_pointer.append(row['execution_engine_pointer'])
-    #         radio_info.execution_engine_list = [execution_engine_t() for i in range(len(exec_engine_current_list_name))]
-    #         for ii in range(len(exec_engine_current_list_name)):
-    #             radio_info.execution_engine_list[ii].execution_engine_name = exec_engine_current_list_name[ii]
-    #             radio_info.execution_engine_list[ii].execution_engine_pointer = exec_engine_current_list_pointer[ii]
-    #             #self.log.debug(" execution engine %s " %  radio_info.execution_engine_list[ii].execution_engine_pointer )
-    #
-    #
-    #     #get available repository
-    #     radio_prg_current_list_name = []
-    #     radio_prg_current_list_pointer = []
-    #     with open('../agent_modules/wifi_wmp//wmp_repository/radio_program_repository.csv') as csvfile:
-    #         reader = csv.DictReader(csvfile)
-    #         for row in reader:
-    #             #filter for WMP platform
-    #             #self.log.debug(" %s " %  str(row['radio_prg_name']) )
-    #             radio_prg_current_list_name.append(row['radio_prg_name'])
-    #             radio_prg_current_list_pointer.append(row['radio_prg_pointer'])
-    #         radio_info.radio_program_list = [radio_program_t() for i in range(len(radio_prg_current_list_name))]
-    #         for ii in range(len(radio_prg_current_list_name)):
-    #             radio_info.radio_program_list[ii].radio_prg_name = radio_prg_current_list_name[ii]
-    #             radio_info.radio_program_list[ii].radio_prg_pointer = radio_prg_current_list_pointer[ii]
-    #
-    #
-    #     b43 = B43(b43_phy)
-    #     radio_info.monitor_list = b43.monitor_list
-    #     radio_info.param_list = b43.param_list
-    #
-    #     ret_lst = []
-    #     ret_lst = {'radio_info' : [radio_info.platform_info.platform_id, radio_info.platform_info.platform],
-    #                'event_list' : [''], 'monitor_list' : [b43.monitor_list], 'param_list' : [b43.param_list],
-    #                'radio_prg_list_name' : [radio_prg_current_list_name], 'radio_prg_list_pointer' : [radio_prg_current_list_pointer],
-    #                'exec_engine_list_name' : [exec_engine_current_list_name], 'exec_engine_list_pointer' : [exec_engine_current_list_pointer],
-    #                }
-    #
-    #     #execution_engine_list = None
-    #     self.log.debug("ret_lst %s " %  ret_lst )
-    #     return ret_lst
+    @wishful_module.bind_function(upis.radio.get_radio_info)
+    def get_radio_info(self, interface):
+        radio_id = interface
+        platform = "WMP"
+        self.log.debug('get_radio_info(): %s : %s' % ( str(radio_id), str(platform) ) )
 
-    # def getParameterLowerLayer(self, myargs):
-    #     self.log.debug('getParameterLowerLayer(): %s' % str(myargs))
-    #     ret_lst = []
-    #
-    #     if myargs.has_key('cmd'):
-    #         cmd = myargs['cmd']
-    #         if cmd == UPI_R.NETWORK_INTERFACE_HW_ADDRESS:
-    #             return self.getHwAddr(myargs)
-    #         elif cmd == UPI_R.IEEE80211_L2_BCAST_TRANSMIT_RATE:
-    #             return self.genBacklogged80211L2BcastTraffic(myargs)
-    #         elif cmd == UPI_R.IEEE80211_L2_GEN_LINK_PROBING:
-    #             return self.gen80211L2LinkProbing(myargs)
-    #         elif cmd == UPI_R.IEEE80211_L2_SNIFF_LINK_PROBING:
-    #             return self.sniff80211L2LinkProbing(myargs)
-    #         else:
-    #             self.log.error('getParameterLowerLayer(): unknown parameter with command (cmd)')
-    #
-    #     if myargs.has_key('parameters'):
-    #         key_parameter = myargs['parameters']
-    #         for ii in range(0,len(key_parameter)):
-    #             if key_parameter[ii] == UPI_R.CSMA_CW:
-    #                 ret_lst.append( self.readRadioProgramParameters(UPI_R.CSMA_CW) )
-    #             elif key_parameter[ii] == UPI_R.CSMA_CW_MIN:
-    #                 ret_lst.append( self.readRadioProgramParameters(UPI_R.CSMA_CW_MIN) )
-    #             elif key_parameter[ii] == UPI_R.CSMA_CW_MAX:
-    #                 ret_lst.append( self.readRadioProgramParameters(UPI_R.CSMA_CW_MAX) )
-    #             elif key_parameter[ii] == UPI_R.TDMA_SUPER_FRAME_SIZE:
-    #                 ret_lst.append( self.readRadioProgramParameters(UPI_R.TDMA_SUPER_FRAME_SIZE) )
-    #             elif key_parameter[ii] == UPI_R.TDMA_NUMBER_OF_SYNC_SLOT:
-    #                 ret_lst.append( self.readRadioProgramParameters(UPI_R.TDMA_NUMBER_OF_SYNC_SLOT) )
-    #             elif key_parameter[ii] == UPI_R.TDMA_ALLOCATED_SLOT:
-    #                 ret_lst.append( self.readRadioProgramParameters(UPI_R.TDMA_ALLOCATED_SLOT) )
-    #             else:
-    #                 self.log.error('getParameterLowerLayer(): unknown parameter with parameters (parameters)')
-    #
-    #     self.log.debug('getParameterLowerLayer() exit : %s' % str(ret_lst))
-    #
-    #     return ret_lst
-    #
+        radio_info = radio_info_t()
+        radio_info.platform_info = radio_platform_t()
+
+        radio_info.platform_info.platform_id = radio_id
+        radio_info.platform_info.platform = platform
+
+        #get available engines
+        exec_engine_current_list_name = []
+        exec_engine_current_list_pointer = []
+        with open('../../agent_modules/wifi_wmp/wmp_repository/execution_engine_repository.csv') as csvfile:
+            reader = csv.DictReader(csvfile)
+
+            for row in reader:
+                #filter for WMP platform
+                #self.log.debug(" %s " %  str(row['execution_engine_name']) )
+                exec_engine_current_list_name.append(row['execution_engine_name'])
+                exec_engine_current_list_pointer.append(row['execution_engine_pointer'])
+            radio_info.execution_engine_list = [execution_engine_t() for i in range(len(exec_engine_current_list_name))]
+            for ii in range(len(exec_engine_current_list_name)):
+                radio_info.execution_engine_list[ii].execution_engine_name = exec_engine_current_list_name[ii]
+                radio_info.execution_engine_list[ii].execution_engine_pointer = exec_engine_current_list_pointer[ii]
+                #self.log.debug(" execution engine %s " %  radio_info.execution_engine_list[ii].execution_engine_pointer )
+
+
+        #get available repository
+        radio_prg_current_list_name = []
+        radio_prg_current_list_pointer = []
+        with open('../../agent_modules/wifi_wmp/wmp_repository/radio_program_repository.csv') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                #filter for WMP platform
+                #self.log.debug(" radio prg name : %s " %  str(row['radio_prg_name']) )
+                radio_prg_current_list_name.append(row['radio_prg_name'])
+                radio_prg_current_list_pointer.append(row['radio_prg_pointer'])
+            radio_info.radio_program_list = [radio_program_t() for i in range(len(radio_prg_current_list_name))]
+            for ii in range(len(radio_prg_current_list_name)):
+                radio_info.radio_program_list[ii].radio_prg_name = radio_prg_current_list_name[ii]
+                radio_info.radio_program_list[ii].radio_prg_pointer = radio_prg_current_list_pointer[ii]
+
+        b43 = B43(self.b43_phy)
+        radio_info.monitor_list = b43.monitor_list
+        radio_info.param_list = b43.param_list
+        ret_lst = []
+        ret_lst = {'radio_info' : [radio_info.platform_info.platform_id, radio_info.platform_info.platform],
+                   'event_list' : [''], 'monitor_list' : [b43.monitor_list], 'param_list' : [b43.param_list],
+                   'radio_prg_list_name' : [radio_prg_current_list_name], 'radio_prg_list_pointer' : [radio_prg_current_list_pointer],
+                   'exec_engine_list_name' : [exec_engine_current_list_name], 'exec_engine_list_pointer' : [exec_engine_current_list_pointer],
+                   }
+        #execution_engine_list = None
+        self.log.debug("ret_lst %s " %  ret_lst )
+        return ret_lst
+
+    @wishful_module.bind_function(upis.radio.get_parameter_lower_layer)
+    def get_parameter_lower_layer(self, myargs):
+        self.log.debug('get_parameter_lower_layer(): %s' % str(myargs))
+        ret_lst = []
+
+        # if myargs.has_key('cmd'):
+        #     cmd = myargs['cmd']
+        #     if cmd == UPI_R.NETWORK_INTERFACE_HW_ADDRESS:
+        #         return self.getHwAddr(myargs)
+        #     elif cmd == UPI_R.IEEE80211_L2_BCAST_TRANSMIT_RATE:
+        #         return self.genBacklogged80211L2BcastTraffic(myargs)
+        #     elif cmd == UPI_R.IEEE80211_L2_GEN_LINK_PROBING:
+        #         return self.gen80211L2LinkProbing(myargs)
+        #     elif cmd == UPI_R.IEEE80211_L2_SNIFF_LINK_PROBING:
+        #         return self.sniff80211L2LinkProbing(myargs)
+        #     else:
+        #         self.log.error('getParameterLowerLayer(): unknown parameter with command (cmd)')
+
+        if 'parameters' in myargs:
+            key_parameter = myargs['parameters']
+            for ii in range(0,len(key_parameter)):
+                if key_parameter[ii] == UPI_R.CSMA_CW:
+                    ret_lst.append( self.readRadioProgramParameters(UPI_R.CSMA_CW) )
+                elif key_parameter[ii] == UPI_R.CSMA_CW_MIN:
+                    ret_lst.append( self.readRadioProgramParameters(UPI_R.CSMA_CW_MIN) )
+                elif key_parameter[ii] == UPI_R.CSMA_CW_MAX:
+                    ret_lst.append( self.readRadioProgramParameters(UPI_R.CSMA_CW_MAX) )
+                elif key_parameter[ii] == UPI_R.TDMA_SUPER_FRAME_SIZE:
+                    ret_lst.append( self.readRadioProgramParameters(UPI_R.TDMA_SUPER_FRAME_SIZE) )
+                elif key_parameter[ii] == UPI_R.TDMA_NUMBER_OF_SYNC_SLOT:
+                    ret_lst.append( self.readRadioProgramParameters(UPI_R.TDMA_NUMBER_OF_SYNC_SLOT) )
+                elif key_parameter[ii] == UPI_R.TDMA_ALLOCATED_SLOT:
+                    ret_lst.append( self.readRadioProgramParameters(UPI_R.TDMA_ALLOCATED_SLOT) )
+                else:
+                    self.log.error('get_parameter_lower_layer(): unknown parameter with parameters (parameters)')
+
+        self.log.debug('get_parameter_lower_layer() exit : %s' % str(ret_lst))
+        return ret_lst
+
     # def defineEvent(self, myargs):
     #     raise ValueError('Not yet implemented')
     #
-    # def setParameterLowerLayer(self, myargs):
-    #     now = datetime.now()
-    #     self.log.warning('setParameterLowerLayer(): %s' % (str(myargs)))
-    #     ret_lst = []
+
+    @wishful_module.bind_function(upis.radio.set_parameter_lower_layer)
+    def set_parameter_lower_layer(self, myargs):
+        self.log.debug('setParameterLowerLayer(): %s' % (str(myargs)))
+        ret_lst = []
+
+        #manage TDMA slot parameter
+        super_frame_size = 0
+        number_of_sync_slot = 0
+        if UPI_R.TDMA_SUPER_FRAME_SIZE in myargs:
+            super_frame_size = myargs[UPI_R.TDMA_SUPER_FRAME_SIZE]
+        if UPI_R.TDMA_NUMBER_OF_SYNC_SLOT in myargs:
+            number_of_sync_slot = myargs[UPI_R.TDMA_NUMBER_OF_SYNC_SLOT]
+        if super_frame_size != 0 or number_of_sync_slot !=0 :
+            if super_frame_size != 0 and number_of_sync_slot != 0 :
+                self.log.debug('setting superframe and number_of_sync_slot slot')
+                slot_duration = super_frame_size /  number_of_sync_slot
+                ret_lst.append( self.setRadioProgramParameters(UPI_R.TDMA_SUPER_FRAME_SIZE, slot_duration ) )
+                ret_lst.append( self.setRadioProgramParameters(UPI_R.TDMA_NUMBER_OF_SYNC_SLOT, number_of_sync_slot ) )
+            if super_frame_size == 0 and number_of_sync_slot != 0 :
+                self.log.debug('setting number_of_sync_slot slot')
+                slot_duration = self.readRadioProgramParameters(UPI_R.TDMA_SUPER_FRAME_SIZE)
+                old_number_of_allocated_slot = self.readRadioProgramParameters(UPI_R.TDMA_NUMBER_OF_SYNC_SLOT)
+                slot_duration = (slot_duration * old_number_of_allocated_slot) /  number_of_sync_slot
+                ret_lst.append( self.setRadioProgramParameters(UPI_R.TDMA_SUPER_FRAME_SIZE, slot_duration ) )
+                ret_lst.append( self.setRadioProgramParameters(UPI_R.TDMA_NUMBER_OF_SYNC_SLOT, number_of_sync_slot ) )
+            if super_frame_size != 0 and number_of_sync_slot == 0 :
+                self.log.debug('setting superframe')
+                number_of_sync_slot = self.readRadioProgramParameters(UPI_R.TDMA_NUMBER_OF_SYNC_SLOT)
+                slot_duration = super_frame_size /  number_of_sync_slot
+                ret_lst.append( self.setRadioProgramParameters(UPI_R.TDMA_SUPER_FRAME_SIZE, slot_duration ) )
+            self.startBootStrapOperation()
+
+
+        #manage other parameter
+        # if  UPI_R.IEEE80211_CHANNEL in myargs:
+        #     ret_lst.append( self.setRfChannel(myargs) )
+        # if  UPI_R.IEEE80211_CONNECT_TO_AP in myargs:
+        #     ret_lst.append( self.connectToAP(myargs) )
+        if  UPI_R.CSMA_CW in myargs:
+            ret_lst.append( self.setRadioProgramParameters(UPI_R.CSMA_CW, myargs[UPI_R.CSMA_CW]) )
+        if  UPI_R.CSMA_CW_MIN in myargs:
+            ret_lst.append( self.setRadioProgramParameters(UPI_R.CSMA_CW_MIN, myargs[UPI_R.CSMA_CW_MIN]) )
+        if  UPI_R.CSMA_CW_MAX in myargs:
+            ret_lst.append( self.setRadioProgramParameters(UPI_R.CSMA_CW_MAX, myargs[UPI_R.CSMA_CW_MAX]) )
+        if  UPI_R.TDMA_ALLOCATED_SLOT in myargs:
+            ret_lst.append( self.setRadioProgramParameters(UPI_R.TDMA_ALLOCATED_SLOT, myargs[UPI_R.TDMA_ALLOCATED_SLOT] ) )
+        if  UPI_R.TDMA_ALLOCATED_MASK_SLOT in myargs:
+            ret_lst.append( self.setRadioProgramParameters(UPI_R.TDMA_ALLOCATED_MASK_SLOT, myargs[UPI_R.TDMA_ALLOCATED_MASK_SLOT] ) )
+        if  UPI_R.MAC_ADDR_SYNCHRONIZATION_AP in myargs:
+                mac_address_end = myargs[UPI_R.MAC_ADDR_SYNCHRONIZATION_AP]
+                self.log.debug('ADDRESS 1: %s' % mac_address_end)
+                mac_address_end = mac_address_end.replace(':', '')
+                self.log.debug('ADDRESS 2: %s' % mac_address_end)
+                mac_address_end = mac_address_end[-2:] + mac_address_end[-4:-2]
+                self.log.debug('ADDRESS 3: %s' % mac_address_end)
+                int_mac_address_end = int(mac_address_end, 16)
+                ret_lst.append( self.setRadioProgramParameters(UPI_R.MAC_ADDR_SYNCHRONIZATION_AP, int_mac_address_end ) )
+
+        return ret_lst
+
+    def get_active(self, myargs):
+        self.log.debug('get_active(): ')
+        interface = myargs['interface']
+        command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -v'
+        nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
+        flow_info_lines = nl_output.rstrip().split('\n')
+        items = flow_info_lines[1].split(" ")
+        active_radio_program = items[4]
+        return active_radio_program
+
+    """ we join this function with set active """
+    # def inject(self,  interface, radioProgramName, param_key_value):
+    #     import subprocess
+    #     self.log.debug('inject(): %s ' %  str(param_key_value))
+    #     radio_program_path = ''
+    #     position = None
     #
-    #     #manage TDMA slot parameter
-    #     super_frame_size = 0
-    #     number_of_sync_slot = 0
-    #     if myargs.has_key(UPI_R.TDMA_SUPER_FRAME_SIZE):
-    #         super_frame_size = myargs[UPI_R.TDMA_SUPER_FRAME_SIZE]
-    #     if myargs.has_key(UPI_R.TDMA_NUMBER_OF_SYNC_SLOT):
-    #         number_of_sync_slot = myargs[UPI_R.TDMA_NUMBER_OF_SYNC_SLOT]
-    #     if super_frame_size != 0 or number_of_sync_slot !=0 :
-    #         if super_frame_size != 0 and number_of_sync_slot != 0 :
-    #             self.log.debug('setting superframe and number_of_sync_slot slot')
-    #             slot_duration = super_frame_size /  number_of_sync_slot
-    #             ret_lst.append( self.setRadioProgramParameters(UPI_R.TDMA_SUPER_FRAME_SIZE, slot_duration ) )
-    #             ret_lst.append( self.setRadioProgramParameters(UPI_R.TDMA_NUMBER_OF_SYNC_SLOT, number_of_sync_slot ) )
-    #         if super_frame_size == 0 and number_of_sync_slot != 0 :
-    #             self.log.debug('setting number_of_sync_slot slot')
-    #             slot_duration = self.readRadioProgramParameters(UPI_R.TDMA_SUPER_FRAME_SIZE)
-    #             old_number_of_allocated_slot = self.readRadioProgramParameters(UPI_R.TDMA_NUMBER_OF_SYNC_SLOT)
-    #             slot_duration = (slot_duration * old_number_of_allocated_slot) /  number_of_sync_slot
-    #             ret_lst.append( self.setRadioProgramParameters(UPI_R.TDMA_SUPER_FRAME_SIZE, slot_duration ) )
-    #             ret_lst.append( self.setRadioProgramParameters(UPI_R.TDMA_NUMBER_OF_SYNC_SLOT, number_of_sync_slot ) )
-    #         if super_frame_size != 0 and number_of_sync_slot == 0 :
-    #             self.log.debug('setting superframe')
-    #             number_of_sync_slot = self.readRadioProgramParameters(UPI_R.TDMA_NUMBER_OF_SYNC_SLOT)
-    #             slot_duration = super_frame_size /  number_of_sync_slot
-    #             ret_lst.append( self.setRadioProgramParameters(UPI_R.TDMA_SUPER_FRAME_SIZE, slot_duration ) )
-    #         self.startBootStrapOperation()
+    #     radio_program_path = param_key_value['PATH']
+    #     position = param_key_value['POSITION']
     #
+    #     if position == None :
+    #         position = 1
     #
-    #     #manage other parameter
-    #     if  myargs.has_key(UPI_R.IEEE80211_CHANNEL):
-    #         ret_lst.append( self.setRfChannel(myargs) )
-    #     if  myargs.has_key(UPI_R.IEEE80211_CONNECT_TO_AP):
-    #         ret_lst.append( self.connectToAP(myargs) )
-    #     if  myargs.has_key(UPI_R.CSMA_CW):
-    #         ret_lst.append( self.setRadioProgramParameters(UPI_R.CSMA_CW, myargs[UPI_R.CSMA_CW]) )
-    #     if  myargs.has_key(UPI_R.CSMA_CW_MIN):
-    #         ret_lst.append( self.setRadioProgramParameters(UPI_R.CSMA_CW_MIN, myargs[UPI_R.CSMA_CW_MIN]) )
-    #     if  myargs.has_key(UPI_R.CSMA_CW_MAX):
-    #         ret_lst.append( self.setRadioProgramParameters(UPI_R.CSMA_CW_MAX, myargs[UPI_R.CSMA_CW_MAX]) )
-    #     if  myargs.has_key(UPI_R.TDMA_ALLOCATED_SLOT):
-    #         ret_lst.append( self.setRadioProgramParameters(UPI_R.TDMA_ALLOCATED_SLOT, myargs[UPI_R.TDMA_ALLOCATED_SLOT] ) )
-    #     if  myargs.has_key(UPI_R.TDMA_ALLOCATED_MASK_SLOT):
-    #         ret_lst.append( self.setRadioProgramParameters(UPI_R.TDMA_ALLOCATED_MASK_SLOT, myargs[UPI_R.TDMA_ALLOCATED_MASK_SLOT] ) )
-    #     if  myargs.has_key(UPI_R.MAC_ADDR_SYNCHRONIZATION_AP):
-    #             mac_address_end = myargs[UPI_R.MAC_ADDR_SYNCHRONIZATION_AP]
-    #             self.log.warning('1: %s' % mac_address_end)
-    #             mac_address_end = mac_address_end.replace(':', '')
-    #             self.log.warning('2: %s' % mac_address_end)
-    #             mac_address_end = mac_address_end[-2:] + mac_address_end[-4:-2]
-    #             self.log.warning('3: %s' % mac_address_end)
-    #             int_mac_address_end = int(mac_address_end, 16)
-    #             ret_lst.append( self.setRadioProgramParameters(UPI_R.MAC_ADDR_SYNCHRONIZATION_AP, int_mac_address_end ) )
+    #     command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -l ' + position + ' -m ' + radio_program_path
+    #     #self.log.debug('output %s ', command)
     #
+    #     nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
+    #     self.log.debug('output %s ', nl_output)
     #
-    #     return ret_lst
-#
-#     def getActive(self, myargs):
-#         import subprocess
-#         self.log.debug('getActive(): ')
-#         interface = myargs['interface']
-#         command = './runtime/connectors/wmp_linux/adaptation_module/src/bytecode-manager -v'
-#         nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
-#         flow_info_lines = nl_output.rstrip().split('\n')
-#         items = flow_info_lines[1].split(" ")
-#         active_radio_program = items[4]
-#         return active_radio_program
-#
-#     """ we join this function with set active """
-#     # def inject(self,  interface, radioProgramName, param_key_value):
-#     #     import subprocess
-#     #     self.log.debug('inject(): %s ' %  str(param_key_value))
-#     #     radio_program_path = ''
-#     #     position = None
-#     #
-#     #     radio_program_path = param_key_value['PATH']
-#     #     position = param_key_value['POSITION']
-#     #
-#     #     if position == None :
-#     #         position = 1
-#     #
-#     #     command = './runtime/connectors/wmp_linux/adaptation_module/src/bytecode-manager -l ' + position + ' -m ' + radio_program_path
-#     #     #self.log.debug('output %s ', command)
-#     #
-#     #     nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
-#     #     self.log.debug('output %s ', nl_output)
-#     #
-#     #     flow_info_lines = nl_output.rstrip().split('\n')
-#     #     #items = flow_info_lines[1].split(" ")
-#     #     if flow_info_lines[5] == 'end load file' :
-#     #         self.log.debug('Radio program successfully injected!')
-#     #         return True
-#     #     else :
-#     #         self.log.debug('Radio program inject error')
-#     #         return False
+    #     flow_info_lines = nl_output.rstrip().split('\n')
+    #     #items = flow_info_lines[1].split(" ")
+    #     if flow_info_lines[5] == 'end load file' :
+    #         self.log.debug('Radio program successfully injected!')
+    #         return True
+    #     else :
+    #         self.log.debug('Radio program inject error')
+    #         return False
 #
 #     def setActive(self,  myargs):
 #         import subprocess
@@ -425,7 +469,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
 #         #handled only if operation number is great of 3
 #         self.log.debug('operation : %d - radio_program_name = %s - position = %d - radio_program_path = %s' %  (operation, radio_program_name, position, radio_program_path) )
 #         if operation > 3 :
-#             command = './runtime/connectors/wmp_linux/adaptation_module/src/bytecode-manager -l ' + str(position) + ' -m ' + radio_program_path
+#             command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -l ' + str(position) + ' -m ' + radio_program_path
 #             nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
 #             self.log.debug(' bytecode-manager command result : %s' % nl_output)
 #             flow_info_lines = nl_output.rstrip().split('\n')
@@ -436,7 +480,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
 #                 WMP_status.memory_slot_list[(position-1)].radio_program_pointer = radio_program_path
 #
 #         """ radio program activation """
-#         command = './runtime/connectors/wmp_linux/adaptation_module/src/bytecode-manager -a ' + str(position)
+#         command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -a ' + str(position)
 #         nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
 #         self.log.debug(' bytecode-manager command result : %s' % nl_output)
 #         flow_info_lines = nl_output.rstrip().split('\n')
@@ -450,7 +494,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
 #     def setInactive(self, myargs):
 #         """ radio program activation """
 #         radio_program_name = myargs['radio_program_name']
-#         command = './runtime/connectors/wmp_linux/adaptation_module/src/bytecode-manager -d ' + radio_program_name
+#         command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -d ' + radio_program_name
 #         nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
 #         flow_info_lines = nl_output.rstrip().split('\n')
 #         if position == '1' and flow_info_lines[0] == 'InActive byte-code 1' :
@@ -461,144 +505,142 @@ class WmpModule(wishful_module_wifi.WifiModule):
 #             return self.FAILURE
 #
 #
-#     #******
-#     #read
-#     #******
-#     def readRadioProgramParameters(self, offset_parameter=0):
-#
-#         b43 = B43(b43_phy)
-#         val = 0
-#         val_2 = 0
-#
-#         gpr_byte_code_value = b43.shmRead16(b43.B43_SHM_REGS, b43.BYTECODE_ADDR_OFFSET)
-#         active_slot=0
-#         if not (offset_parameter==UPI_R.CSMA_CW or offset_parameter==UPI_R.CSMA_CW_MIN or offset_parameter== UPI_R.CSMA_CW_MAX or offset_parameter == UPI_R.REGISTER_1 or offset_parameter == UPI_R.REGISTER_2):
-#             if gpr_byte_code_value == b43.PARAMETER_ADDR_OFFSET_BYTECODE_1 :
-#                 active_slot = 1
-#             elif gpr_byte_code_value == b43.PARAMETER_ADDR_OFFSET_BYTECODE_2 :
-#                 active_slot = 2
-#             else :
-#                 self.log.error('readRadioProgramParameters(): no active slot')
-#                 return val
-#
-#         if offset_parameter == UPI_R.CSMA_CW:
-#             val = b43.shmRead16(b43.B43_SHM_REGS, b43.GPR_CUR_CONTENTION_WIN)
-#         elif offset_parameter == UPI_R.CSMA_CW_MIN:
-#             val = b43.shmRead16(b43.B43_SHM_REGS, b43.GPR_MIN_CONTENTION_WIN)
-#         elif offset_parameter == UPI_R.CSMA_CW_MAX:
-#             val = b43.shmRead16(b43.B43_SHM_REGS, b43.GPR_MAX_CONTENTION_WIN)
-#         elif offset_parameter == UPI_R.REGISTER_1:
-#             val = b43.shmRead16(b43.B43_SHM_REGS, b43.PROCEDURE_REGISTER_1)
-#         elif offset_parameter == UPI_R.REGISTER_2:
-#             val = b43.shmRead16(b43.B43_SHM_REGS, b43.PROCEDURE_REGISTER_2)
-#         elif offset_parameter == UPI_R.TDMA_SUPER_FRAME_SIZE :
-#             if active_slot == 1 :
-#                 val = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_SUPER_FRAME_SIZE)
-#                 val_2 = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_NUMBER_OF_SYNC_SLOT)
-#             else :
-#                 val = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_SUPER_FRAME_SIZE)
-#                 val_2 = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_NUMBER_OF_SYNC_SLOT)
-#
-#             self.log.error('readRadioProgramParameters(): val %s : val_2 %s' % (str(val), str(val_2)))
-#             val = val * val_2
-#         elif offset_parameter == UPI_R.TDMA_NUMBER_OF_SYNC_SLOT :
-#             if active_slot == 1 :
-#                 val = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_NUMBER_OF_SYNC_SLOT)
-#             else :
-#                 val = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_NUMBER_OF_SYNC_SLOT)
-#         elif offset_parameter == UPI_R.TDMA_ALLOCATED_SLOT :
-#             if active_slot == 1 :
-#                 val = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_ALLOCATED_SLOT)
-#             else :
-#                 val = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_ALLOCATED_SLOT)
-#         else:
-#             self.log.error('readRadioProgramParameters(): unknown parameter')
-#
-#         #self.log.debug('B43 control ret value %d' % val)
-#         return val
-#
-#     #******
-#     #set
-#     #******
-#     def setRadioProgramParameters(self, offset_parameter=0, value=0):
-#         b43 = B43(b43_phy)
-#         write_share = False
-#         write_gpr = False
-#
-#         self.log.warning('setRadioProgramParameters(): offset = %s - value = %s' % (str(offset_parameter), str(value)))
-#
-#         gpr_byte_code_value = b43.shmRead16(b43.B43_SHM_REGS, b43.BYTECODE_ADDR_OFFSET);
-#         active_slot=0
-#         if  not (offset_parameter==UPI_R.CSMA_CW or offset_parameter==UPI_R.CSMA_CW_MIN or offset_parameter== UPI_R.CSMA_CW_MAX or offset_parameter == UPI_R.REGISTER_1 or offset_parameter == UPI_R.REGISTER_2 or offset_parameter == UPI_R.MAC_ADDR_SYNCHRONIZATION_AP):
-#             if gpr_byte_code_value == b43.PARAMETER_ADDR_OFFSET_BYTECODE_1 :
-#                 active_slot = 1
-#                 #self.log.debug('detected active slot 1')
-#             elif gpr_byte_code_value == b43.PARAMETER_ADDR_OFFSET_BYTECODE_2 :
-#                 active_slot = 2
-#                 #self.log.debug('detected active slot 2')
-#             else :
-#                 self.log.error('readRadioProgramParameters(): no active slot')
-# 	        return False
-#
-#
-#         if offset_parameter == UPI_R.MAC_ADDR_SYNCHRONIZATION_AP:
-#             offset_parameter_gpr= b43.MAC_ADDR_SYNCHRONIZATION_AP_GPR
-#             write_gpr = True
-#         elif offset_parameter == UPI_R.CSMA_CW:
-#             offset_parameter_share= b43.SHM_EDCFQCUR + b43.SHM_EDCFQ_CWCUR
-#             offset_parameter_gpr= b43.GPR_CUR_CONTENTION_WIN
-#             write_share = True
-#             write_gpr = True
-#         elif offset_parameter == UPI_R.CSMA_CW_MIN:
-#             offset_parameter_share= b43.SHM_EDCFQCUR + b43.SHM_EDCFQ_CWMIN
-#             offset_parameter_gpr= b43.GPR_MIN_CONTENTION_WIN
-#             write_share = True
-#             write_gpr = True
-#         elif offset_parameter == UPI_R.CSMA_CW_MAX:
-#             offset_parameter_share= b43.SHM_EDCFQCUR + b43.SHM_EDCFQ_CWMAX
-#             offset_parameter_gpr= b43.GPR_MAX_CONTENTION_WIN
-#             write_share = True
-#             write_gpr = True
-#         elif offset_parameter == UPI_R.REGISTER_1:
-#             offset_parameter_gpr= b43.PROCEDURE_REGISTER_1
-#             write_gpr = True
-#         elif offset_parameter == UPI_R.REGISTER_2:
-#             offset_parameter_gpr= b43.PROCEDURE_REGISTER_2
-#             write_gpr = True
-#         elif offset_parameter == UPI_R.TDMA_SUPER_FRAME_SIZE :
-#             #self.log.debug('start : write super frame size %d' % value)
-#             if active_slot == 1 :
-#                 b43.shmWrite16(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_SUPER_FRAME_SIZE, value)
-#                 #self.log.debug('slot 1 : write super frame size %d' % value)
-#             else :
-#                 b43.shmWrite16(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_SUPER_FRAME_SIZE, value)
-#                 #self.log.debug('slot 2 : write super frame size %d' % value)
-#         elif offset_parameter == UPI_R.TDMA_NUMBER_OF_SYNC_SLOT:
-#             if active_slot == 1 :
-#                 b43.shmWrite16(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_NUMBER_OF_SYNC_SLOT, value)
-#             else :
-#                 b43.shmWrite16(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_NUMBER_OF_SYNC_SLOT, value)
-#         elif offset_parameter == UPI_R.TDMA_ALLOCATED_SLOT  :
-#             if active_slot == 1 :
-#                 b43.shmWrite16(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_ALLOCATED_SLOT, value)
-#             else :
-#                 b43.shmWrite16(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_ALLOCATED_SLOT, value)
-#         elif offset_parameter == UPI_R.TDMA_ALLOCATED_MASK_SLOT  :
-#             if active_slot == 1 :
-#                 b43.shmWrite32(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_ALLOCATED_MASK_SLOT, value)
-#             else :
-#                 b43.shmWrite32(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_ALLOCATED_MASK_SLOT, value)
-#         else :
-#             self.log.error('setRadioProgramParameters(): unknown parameter')
-#             return self.FAILURE
-#
-#         if write_share :
-#             b43.shmWrite16(b43.B43_SHM_SHARED, offset_parameter_share, value)
-#         if write_gpr :
-#             b43.shmWrite16(b43.B43_SHM_REGS, offset_parameter_gpr, value)
-#             self.log.warning('4: offset = %s - value = %s' % (str(offset_parameter_gpr), str(value)))
-#
-#         return self.SUCCESS
+    #******
+    #read
+    #******
+    def readRadioProgramParameters(self, offset_parameter=0):
+
+        b43 = B43(self.b43_phy)
+        val = 0
+        val_2 = 0
+
+        gpr_byte_code_value = b43.shmRead16(b43.B43_SHM_REGS, b43.BYTECODE_ADDR_OFFSET)
+        active_slot=0
+        if not (offset_parameter==UPI_R.CSMA_CW or offset_parameter==UPI_R.CSMA_CW_MIN or offset_parameter== UPI_R.CSMA_CW_MAX or offset_parameter == UPI_R.REGISTER_1 or offset_parameter == UPI_R.REGISTER_2):
+            if gpr_byte_code_value == b43.PARAMETER_ADDR_OFFSET_BYTECODE_1 :
+                active_slot = 1
+            elif gpr_byte_code_value == b43.PARAMETER_ADDR_OFFSET_BYTECODE_2 :
+                active_slot = 2
+            else :
+                self.log.error('readRadioProgramParameters(): no active slot')
+                return val
+
+        if offset_parameter == UPI_R.CSMA_CW:
+            val = b43.shmRead16(b43.B43_SHM_REGS, b43.GPR_CUR_CONTENTION_WIN)
+        elif offset_parameter == UPI_R.CSMA_CW_MIN:
+            val = b43.shmRead16(b43.B43_SHM_REGS, b43.GPR_MIN_CONTENTION_WIN)
+        elif offset_parameter == UPI_R.CSMA_CW_MAX:
+            val = b43.shmRead16(b43.B43_SHM_REGS, b43.GPR_MAX_CONTENTION_WIN)
+        elif offset_parameter == UPI_R.REGISTER_1:
+            val = b43.shmRead16(b43.B43_SHM_REGS, b43.PROCEDURE_REGISTER_1)
+        elif offset_parameter == UPI_R.REGISTER_2:
+            val = b43.shmRead16(b43.B43_SHM_REGS, b43.PROCEDURE_REGISTER_2)
+        elif offset_parameter == UPI_R.TDMA_SUPER_FRAME_SIZE :
+            if active_slot == 1 :
+                val = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_SUPER_FRAME_SIZE)
+                val_2 = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_NUMBER_OF_SYNC_SLOT)
+            else :
+                val = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_SUPER_FRAME_SIZE)
+                val_2 = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_NUMBER_OF_SYNC_SLOT)
+
+            self.log.error('readRadioProgramParameters(): val %s : val_2 %s' % (str(val), str(val_2)))
+            val = val * val_2
+        elif offset_parameter == UPI_R.TDMA_NUMBER_OF_SYNC_SLOT :
+            if active_slot == 1 :
+                val = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_NUMBER_OF_SYNC_SLOT)
+            else :
+                val = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_NUMBER_OF_SYNC_SLOT)
+        elif offset_parameter == UPI_R.TDMA_ALLOCATED_SLOT :
+            if active_slot == 1 :
+                val = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_ALLOCATED_SLOT)
+            else :
+                val = b43.shmRead16(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_ALLOCATED_SLOT)
+        else:
+            self.log.error('readRadioProgramParameters(): unknown parameter')
+
+        #self.log.debug('B43 control ret value %d' % val)
+        return val
+
+    #******
+    #set
+    #******
+    def setRadioProgramParameters(self, offset_parameter=0, value=0):
+        b43 = B43(self.b43_phy)
+        write_share = False
+        write_gpr = False
+
+        self.log.debug('setRadioProgramParameters(): offset = %s - value = %s' % (str(offset_parameter), str(value)))
+        gpr_byte_code_value = b43.shmRead16(b43.B43_SHM_REGS, b43.BYTECODE_ADDR_OFFSET);
+        active_slot=0
+        if  not (offset_parameter==UPI_R.CSMA_CW or offset_parameter==UPI_R.CSMA_CW_MIN or offset_parameter== UPI_R.CSMA_CW_MAX or offset_parameter == UPI_R.REGISTER_1 or offset_parameter == UPI_R.REGISTER_2 or offset_parameter == UPI_R.MAC_ADDR_SYNCHRONIZATION_AP):
+            if gpr_byte_code_value == b43.PARAMETER_ADDR_OFFSET_BYTECODE_1 :
+                active_slot = 1
+                #self.log.debug('detected active slot 1')
+            elif gpr_byte_code_value == b43.PARAMETER_ADDR_OFFSET_BYTECODE_2 :
+                active_slot = 2
+                #self.log.debug('detected active slot 2')
+            else :
+                self.log.error('readRadioProgramParameters(): no active slot')
+            return False
+
+
+        if offset_parameter == UPI_R.MAC_ADDR_SYNCHRONIZATION_AP:
+            offset_parameter_gpr= b43.MAC_ADDR_SYNCHRONIZATION_AP_GPR
+            write_gpr = True
+        elif offset_parameter == UPI_R.CSMA_CW:
+            offset_parameter_share= b43.SHM_EDCFQCUR + b43.SHM_EDCFQ_CWCUR
+            offset_parameter_gpr= b43.GPR_CUR_CONTENTION_WIN
+            write_share = True
+            write_gpr = True
+        elif offset_parameter == UPI_R.CSMA_CW_MIN:
+            offset_parameter_share= b43.SHM_EDCFQCUR + b43.SHM_EDCFQ_CWMIN
+            offset_parameter_gpr= b43.GPR_MIN_CONTENTION_WIN
+            write_share = True
+            write_gpr = True
+        elif offset_parameter == UPI_R.CSMA_CW_MAX:
+            offset_parameter_share= b43.SHM_EDCFQCUR + b43.SHM_EDCFQ_CWMAX
+            offset_parameter_gpr= b43.GPR_MAX_CONTENTION_WIN
+            write_share = True
+            write_gpr = True
+        elif offset_parameter == UPI_R.REGISTER_1:
+            offset_parameter_gpr= b43.PROCEDURE_REGISTER_1
+            write_gpr = True
+        elif offset_parameter == UPI_R.REGISTER_2:
+            offset_parameter_gpr= b43.PROCEDURE_REGISTER_2
+            write_gpr = True
+        elif offset_parameter == UPI_R.TDMA_SUPER_FRAME_SIZE :
+            #self.log.debug('start : write super frame size %d' % value)
+            if active_slot == 1 :
+                b43.shmWrite16(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_SUPER_FRAME_SIZE, value)
+                #self.log.debug('slot 1 : write super frame size %d' % value)
+            else :
+                b43.shmWrite16(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_SUPER_FRAME_SIZE, value)
+                #self.log.debug('slot 2 : write super frame size %d' % value)
+        elif offset_parameter == UPI_R.TDMA_NUMBER_OF_SYNC_SLOT:
+            if active_slot == 1 :
+                b43.shmWrite16(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_NUMBER_OF_SYNC_SLOT, value)
+            else :
+                b43.shmWrite16(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_NUMBER_OF_SYNC_SLOT, value)
+        elif offset_parameter == UPI_R.TDMA_ALLOCATED_SLOT  :
+            if active_slot == 1 :
+                b43.shmWrite16(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_ALLOCATED_SLOT, value)
+            else :
+                b43.shmWrite16(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_ALLOCATED_SLOT, value)
+        elif offset_parameter == UPI_R.TDMA_ALLOCATED_MASK_SLOT  :
+            if active_slot == 1 :
+                b43.shmWrite32(b43.B43_SHM_SHARED, b43.SHM_SLOT_1_TDMA_ALLOCATED_MASK_SLOT, value)
+            else :
+                b43.shmWrite32(b43.B43_SHM_SHARED, b43.SHM_SLOT_2_TDMA_ALLOCATED_MASK_SLOT, value)
+        else :
+            self.log.error('setRadioProgramParameters(): unknown parameter')
+            return self.FAILURE
+
+        if write_share :
+            b43.shmWrite16(b43.B43_SHM_SHARED, offset_parameter_share, value)
+        if write_gpr :
+            b43.shmWrite16(b43.B43_SHM_REGS, offset_parameter_gpr, value)
+
+        return self.SUCCESS
 #
 #
 #     def getMonitor(self, myargs):
@@ -906,31 +948,31 @@ class WmpModule(wishful_module_wifi.WifiModule):
 #         msg = {"ReturnValue": "OK"}
 #         return msg
 #
-#     """
-#     Manage operation
-#     """
-#     def startBootStrapOperation(self):
-#         b43 = B43(b43_phy)
-#         gpr_byte_code_value = b43.shmRead16(b43.B43_SHM_REGS, b43.BYTECODE_ADDR_OFFSET)
-#         active_slot=0
-#         if gpr_byte_code_value == b43.PARAMETER_ADDR_OFFSET_BYTECODE_1 :
-#             active_slot = 1
-#         elif gpr_byte_code_value == b43.PARAMETER_ADDR_OFFSET_BYTECODE_2 :
-#             active_slot = 2
-#         else :
-#             self.log.error('startBootStrapOperation(): no active slot')
-#             return False
-#
-#         if active_slot == 1 :
-#             b43.shmMaskSet16(b43.B43_SHM_REGS, b43.GPR_CONTROL, 0xF0FF, 0x0100)
-#         else :
-#             b43.shmMaskSet16(b43.B43_SHM_REGS, b43.GPR_CONTROL, 0xF0FF, 0x0200)
-#         while 1 :
-#             control_return = b43.shmRead16(b43.B43_SHM_REGS, b43.GPR_CONTROL)
-#             if (control_return & 0x0F00) == 0 :
-#                 break
-#
-#         return True
+    """
+    Manage operation
+    """
+    def startBootStrapOperation(self):
+        b43 = B43(self.b43_phy)
+        gpr_byte_code_value = b43.shmRead16(b43.B43_SHM_REGS, b43.BYTECODE_ADDR_OFFSET)
+        active_slot=0
+        if gpr_byte_code_value == b43.PARAMETER_ADDR_OFFSET_BYTECODE_1 :
+            active_slot = 1
+        elif gpr_byte_code_value == b43.PARAMETER_ADDR_OFFSET_BYTECODE_2 :
+            active_slot = 2
+        else :
+            self.log.error('startBootStrapOperation(): no active slot')
+            return False
+
+        if active_slot == 1 :
+            b43.shmMaskSet16(b43.B43_SHM_REGS, b43.GPR_CONTROL, 0xF0FF, 0x0100)
+        else :
+            b43.shmMaskSet16(b43.B43_SHM_REGS, b43.GPR_CONTROL, 0xF0FF, 0x0200)
+        while 1 :
+            control_return = b43.shmRead16(b43.B43_SHM_REGS, b43.GPR_CONTROL)
+            if (control_return & 0x0F00) == 0 :
+                break
+
+        return True
 #
 #
 #     """
