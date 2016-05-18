@@ -10,6 +10,8 @@ import platform
 import numpy as np
 import iptc
 import csv
+import shutil
+
 
 from pytc.TrafficControl import TrafficControl
 
@@ -85,71 +87,114 @@ class WmpModule(wishful_module_wifi.WifiModule):
         self.b43_phy = None
         global NIC_list
         global radio_info
-        global WMP_status
-        WMP_status = WMP_info_t()
-        WMP_status.memory_slot_list = [memory_slot_info_t() for i in range(WMP_status.memory_slot_number)]
+        self.WMP_status = WMP_info_t()
+        self.WMP_status.memory_slot_list = [memory_slot_info_t() for i in range(self.WMP_status.memory_slot_number)]
 
     """
     UPI_M implementation
     """
 
-    # def initTest(self, myargs):
-    #     import subprocess
-    #     self.log.warning('initTest(): %s' % str(myargs) )
-    #     key = myargs['operation']
-    #     interface = myargs['interface']
-    #     try:
-    #         for ii in range(0,len(key)):
-    #             self.log.debug('key: %s' % str(key[ii]) )
-    #
-    #             if key[ii] == "module":
-    #                 cmd_str = 'lsmod | grep b43 | wc -l'
-    #                 cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
-    #                 time.sleep(1)
-    #                 if (int(cmd_output)>0):
-    #                     cmd_str = 'rmmod b43'
-    #                     cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
-    #                 time.sleep(1)
-    #                 cmd_str = 'modprobe b43 qos=0 && sleep 0.5 && ifconfig wlan0 up'
-    #                 cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
-    #                 self.log.debug('cmd_output: %s' % cmd_output)
-    #
-    #             if key[ii] == "association":
-    #                 value_1 = myargs['ssid']
-    #                 value_2 = myargs['ip_address']
-    #                 cmd_str = './runtime/connectors/wmp_linux/network_script/association.sh ' + value_1[ii] + ' ' +value_2[ii]
-    #                 subprocess.call(cmd_str, shell=True)
-    #                 self.log.info('------------------------------ end STA association ------------------------')
-    #
-    #             if key[ii] == "monitor":
-    #                 value_1 = myargs['channel']
-    #                 cmd_str = './runtime/connectors/wmp_linux/network_script/setup_monitor.sh ' + value_1[ii]
-    #                 subprocess.call(cmd_str, shell=True)
-    #                 self.log.info('------------------------------ end STA monitor ------------------------')
-    #
-    #             if key[ii] == "create-network":
-    #                 value_1 = myargs['ssid']
-    #                 value_2 = myargs['ip_address']
-    #
-    #                 cmd_str = 'cat ./runtime/connectors/wmp_linux/network_script/hostapd2_start.conf > ./runtime/connectors/wmp_linux/network_script/hostapd2.conf'
-    #                 #self.log.debug('cmd_str: %s' % cmd_str)
-    #                 subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
-    #                 time.sleep(1)
-    #                 cmd_str = 'echo ssid=' + value_1[ii] + ' >>  ./runtime/connectors/wmp_linux/network_script/hostapd2.conf '
-    #                 #self.log.debug('cmd_str: %s' % cmd_str)
-    #
-    #                 subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
-    #                 time.sleep(1)
-    #                 cmd_str = './runtime/connectors/wmp_linux/network_script/create_network.sh '  + value_2[ii]
-    #                 #self.log.debug('cmd_str: %s' % cmd_str)
-    #
-    #                 subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
-    #                 self.log.info('------------------------------ end AP CONFIGURATION ------------------------')
-    #
-    #     except B43Exception as e:
-    #         self.log.debug('initTest raised an exception:  %s' % e)
-    #
-    #     return True
+    """
+    UPI_M implementation
+    """
+
+    @wishful_module.bind_function(upis.radio.install_execution_engine)
+    def install_execution_engine(self, myargs):
+        execution_engine_value = None
+        module_value = None
+        execution_engine_value = myargs['execution_engine']
+        execution_engine_value = execution_engine_value[0]
+
+        self.log.warning('install_execution_engine(): %s' % (str(execution_engine_value)))
+
+        dst = ""
+        module_dst = "/lib/modules/3.13.11-ckt19-custom/kernel/drivers/net/wireless/b43/"
+        microcode_dst = "/lib/firmware/b43/"
+
+        #self.log.debug('copy file on : %s' % key[ii])
+        if execution_engine_value != None:
+            dst = microcode_dst
+            path_1 = execution_engine_value + '/ucode5.fw'
+            path_2 = execution_engine_value + '/b0g0initvals5.fw'
+            path_3 = execution_engine_value + '/b0g0bsinitvals5.fw'
+            try:
+                #self.log.debug('copy file path_1 : %s on dest : %s' % (path_1, dst) )
+                shutil.copy(path_1, dst)
+                shutil.copy(path_2, dst)
+                shutil.copy(path_3, dst)
+            except Exception as e:
+                self.log.debug('Unable to copy file. %s' % e)
+                return False
+
+        if module_value != None:
+            dst = module_dst
+            path_1 = module_value + '/b43.ko'
+            try:
+                shutil.copy(path_1, dst)
+            except Exception as e:
+                self.log.debug('Unable to copy file. %s' % e)
+                return False
+
+        return True
+
+    @wishful_module.bind_function(upis.radio.init_test)
+    def init_test(self, myargs):
+        import subprocess
+        self.log.warning('initTest(): %s' % str(myargs) )
+        key = myargs['operation']
+        interface = myargs['interface']
+        try:
+            for ii in range(0,len(key)):
+                self.log.debug('key: %s' % str(key[ii]) )
+
+                if key[ii] == "module":
+                    cmd_str = 'lsmod | grep b43 | wc -l'
+                    cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
+                    time.sleep(1)
+                    if (int(cmd_output)>0):
+                        cmd_str = 'rmmod b43'
+                        cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
+                    time.sleep(1)
+                    cmd_str = 'modprobe b43 qos=0 && sleep 0.5 && ifconfig wlan0 up'
+                    cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
+                    self.log.debug('cmd_output: %s' % cmd_output)
+
+                if key[ii] == "association":
+                    value_1 = myargs['ssid']
+                    value_2 = myargs['ip_address']
+                    cmd_str = '../../agent_modules/wifi_wmpx/network_script/association.sh ' + value_1[ii] + ' ' +value_2[ii]
+                    subprocess.call(cmd_str, shell=True)
+                    self.log.info('------------------------------ end STA association ------------------------')
+
+                if key[ii] == "monitor":
+                    value_1 = myargs['channel']
+                    cmd_str = '../../agent_modules/wifi_wmp/network_script/setup_monitor.sh ' + value_1[ii]
+                    subprocess.call(cmd_str, shell=True)
+                    self.log.info('------------------------------ end STA monitor ------------------------')
+
+                if key[ii] == "create-network":
+                    value_1 = myargs['ssid']
+                    value_2 = myargs['ip_address']
+
+                    cmd_str = 'cat ../../agent_modules/wifi_wmp/network_script/hostapd2_start.conf > ./runtime/connectors/wmp_linux/network_script/hostapd2.conf'
+                    #self.log.debug('cmd_str: %s' % cmd_str)
+                    subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
+                    time.sleep(1)
+                    cmd_str = 'echo ssid=' + value_1[ii] + ' >>  ./runtime/connectors/wmp_linux/network_script/hostapd2.conf '
+                    #self.log.debug('cmd_str: %s' % cmd_str)
+
+                    subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
+                    time.sleep(1)
+                    cmd_str = '../../agent_modules/wifi_wmp/network_script/create_network.sh '  + value_2[ii]
+                    #self.log.debug('cmd_str: %s' % cmd_str)
+
+                    subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
+                    self.log.info('------------------------------ end AP CONFIGURATION ------------------------')
+
+        except B43Exception as e:
+            self.log.debug('initTest raised an exception:  %s' % e)
+
+        return True
 
 
     """
@@ -157,7 +202,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
     """
     @wishful_module.bind_function(upis.radio.get_radio_platforms)
     def get_radio_platforms(self):
-        self.log.debug('get_radio_platforms()')
+        self.log.warning('get_radio_platforms()')
 
         cmd_str = 'lsmod | grep b43 | wc -l'
         cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
@@ -175,7 +220,6 @@ class WmpModule(wishful_module_wifi.WifiModule):
             nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
         except: # catch *all* exceptions
             self.log.debug('Error on subprocess call %s', nl_output)
-
 
         nl_output = nl_output.decode('ascii')
         self.log.debug('command output %s', str(nl_output))
@@ -196,7 +240,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
     def get_radio_info(self, interface):
         radio_id = interface
         platform = "WMP"
-        self.log.debug('get_radio_info(): %s : %s' % ( str(radio_id), str(platform) ) )
+        self.log.warning('get_radio_info(): %s : %s' % ( str(radio_id), str(platform) ) )
 
         radio_info = radio_info_t()
         radio_info.platform_info = radio_platform_t()
@@ -252,7 +296,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
 
     @wishful_module.bind_function(upis.radio.get_parameter_lower_layer)
     def get_parameter_lower_layer(self, myargs):
-        self.log.debug('get_parameter_lower_layer(): %s' % str(myargs))
+        self.log.warning('get_parameter_lower_layer(): %s' % str(myargs))
         ret_lst = []
 
         # if myargs.has_key('cmd'):
@@ -295,7 +339,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
 
     @wishful_module.bind_function(upis.radio.set_parameter_lower_layer)
     def set_parameter_lower_layer(self, myargs):
-        self.log.debug('setParameterLowerLayer(): %s' % (str(myargs)))
+        self.log.warning('setParameterLowerLayer(): %s' % (str(myargs)))
         ret_lst = []
 
         #manage TDMA slot parameter
@@ -353,14 +397,17 @@ class WmpModule(wishful_module_wifi.WifiModule):
 
         return ret_lst
 
+    @wishful_module.bind_function(upis.radio.get_active)
     def get_active(self, myargs):
-        self.log.debug('get_active(): ')
+        self.log.warning('get_active(): ')
         interface = myargs['interface']
         command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -v'
         nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
+        nl_output = nl_output.decode('ascii')
         flow_info_lines = nl_output.rstrip().split('\n')
         items = flow_info_lines[1].split(" ")
         active_radio_program = items[4]
+        self.log.debug('active_radio_program : %s' % str(active_radio_program))
         return active_radio_program
 
     """ we join this function with set active """
@@ -390,121 +437,123 @@ class WmpModule(wishful_module_wifi.WifiModule):
     #     else :
     #         self.log.debug('Radio program inject error')
     #         return False
-#
-#     def setActive(self,  myargs):
-#         import subprocess
-#         position = None
-#         radio_program_path = ''
-#         radio_program_name = ''
-#         self.log.debug('setActive(): %s ' %  str(myargs))
-#
-#         if myargs.has_key('position'):
-#             if (myargs['position'] == '1'):
-#                 position = 1
-#             elif (myargs['position'] == '2'):
-#                 position = 2
-#             else :
-#                 return self.FAILURE
-#
-#         if myargs.has_key('radio_program_name'):
-#             radio_program_name = myargs['radio_program_name']
-#         if myargs.has_key('path'):
-#             radio_program_path = myargs['path']
-#
-#         #get the current radio program injected
-#         #injected_radio_program = getInjectedRadioProgram()
-#
-#         #identification the operation
-#         # 1 = activation by position
-#         # 2 = activation by name
-#         # 3 = activation by position and name
-#         # 4 = injection + activation by position
-#         # 5 = injection + activation by name
-#         # 6 = injection + activation by position and name
-#         if radio_program_path == '' :
-#             if position == None and radio_program_name == '':
-#                 return self.FAILURE
-#
-#             elif position != None and radio_program_name == '':
-#                 operation = 1
-#
-#             elif position == None and radio_program_name != '':
-#                 for i in range(WMP_status.memory_slot_number):
-#                     if WMP_status.memory_slot_list[i].radio_program_name == radio_program_name :
-#                         position = i+1
-#
-#                 if position == None :
-#                     return self.FAILURE
-#                 else :
-#                     operation = 2
-#
-#             else :
-#                 operation = 3
-#
-#         else :
-#             if position == None and radio_program_name == '':
-#                 return self.FAILURE
-#
-#             elif position != None and radio_program_name == '':
-#                 operation = 4
-#                 radio_program_name = "NO-NAME"
-#
-#             elif position == None and radio_program_name != '':
-#                 for i in range(WMP_status.memory_slot_number):
-#                     if WMP_status.memory_slot_list[i].radio_program_name == radio_program_name :
-#                         position = i+1
-#
-#                     if position == None :
-#                         if WMP_status.memory_slot_active == 1 :
-#                             position = 2
-#                         else :
-#                             position = 1
-#
-#                     operation = 5
-#
-#             else:
-#                 operation = 6
-#
-#         """ radio program injection on WMP platform """
-#         #handled only if operation number is great of 3
-#         self.log.debug('operation : %d - radio_program_name = %s - position = %d - radio_program_path = %s' %  (operation, radio_program_name, position, radio_program_path) )
-#         if operation > 3 :
-#             command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -l ' + str(position) + ' -m ' + radio_program_path
-#             nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
-#             self.log.debug(' bytecode-manager command result : %s' % nl_output)
-#             flow_info_lines = nl_output.rstrip().split('\n')
-#             if not(flow_info_lines[5] == 'end load file') :
-#                 return self.FAILURE
-#             else :
-#                 WMP_status.memory_slot_list[(position-1)].radio_program_name = radio_program_name
-#                 WMP_status.memory_slot_list[(position-1)].radio_program_pointer = radio_program_path
-#
-#         """ radio program activation """
-#         command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -a ' + str(position)
-#         nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
-#         self.log.debug(' bytecode-manager command result : %s' % nl_output)
-#         flow_info_lines = nl_output.rstrip().split('\n')
-#         if (position == 1 and flow_info_lines[0] == 'Active byte-code 1') or (position == 2 and flow_info_lines[0] == 'Active byte-code 2') :
-#             WMP_status.memory_slot_active = position
-#             return self.SUCCESS
-#         else :
-#             return self.FAILURE
-#
-#
-#     def setInactive(self, myargs):
-#         """ radio program activation """
-#         radio_program_name = myargs['radio_program_name']
-#         command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -d ' + radio_program_name
-#         nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
-#         flow_info_lines = nl_output.rstrip().split('\n')
-#         if position == '1' and flow_info_lines[0] == 'InActive byte-code 1' :
-#             return self.SUCCESS
-#         elif position == '2' and flow_info_lines[0] == 'InActive byte-code 2' :
-#             return self.SUCCESS
-#         else :
-#             return self.FAILURE
-#
-#
+
+    @wishful_module.bind_function(upis.radio.set_active)
+    def set_active(self,  myargs):
+        position = None
+        radio_program_path = ''
+        radio_program_name = ''
+        self.log.warning('set_active(): %s ' %  str(myargs))
+
+        if 'position' in myargs:
+            if (myargs['position'] == '1'):
+                position = 1
+            elif (myargs['position'] == '2'):
+                position = 2
+            else :
+                return self.FAILURE
+
+        if 'radio_program_name' in myargs:
+            radio_program_name = myargs['radio_program_name']
+        if 'path' in myargs:
+            radio_program_path = myargs['path']
+
+        #get the current radio program injected
+        #injected_radio_program = getInjectedRadioProgram()
+
+        #identification the operation
+        # 1 = activation by position
+        # 2 = activation by name
+        # 3 = activation by position and name
+        # 4 = injection + activation by position
+        # 5 = injection + activation by name
+        # 6 = injection + activation by position and name
+        if radio_program_path == '' :
+            if position == None and radio_program_name == '':
+                return self.FAILURE
+
+            elif position != None and radio_program_name == '':
+                operation = 1
+
+            elif position == None and radio_program_name != '':
+                for i in range(self.WMP_status.memory_slot_number):
+                    if self.WMP_status.memory_slot_list[i].radio_program_name == radio_program_name :
+                        position = i+1
+
+                if position == None :
+                    return self.FAILURE
+                else :
+                    operation = 2
+
+            else :
+                operation = 3
+
+        else :
+            if position == None and radio_program_name == '':
+                return self.FAILURE
+
+            elif position != None and radio_program_name == '':
+                operation = 4
+                radio_program_name = "NO-NAME"
+
+            elif position == None and radio_program_name != '':
+                for i in range(self.WMP_status.memory_slot_number):
+                    if self.WMP_status.memory_slot_list[i].radio_program_name == radio_program_name :
+                        position = i+1
+
+                    if position == None :
+                        if self.WMP_status.memory_slot_active == 1 :
+                            position = 2
+                        else :
+                            position = 1
+
+                    operation = 5
+
+            else:
+                operation = 6
+
+        """ radio program injection on WMP platform """
+        #handled only if operation number is great of 3
+        self.log.debug('operation : %d - radio_program_name = %s - position = %d - radio_program_path = %s' %  (operation, radio_program_name, position, radio_program_path) )
+        if operation > 3 :
+            command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -l ' + str(position) + ' -m ' + radio_program_path
+            nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
+            nl_output = nl_output.decode('ascii')
+            self.log.debug(' bytecode-manager command result : %s' % nl_output)
+            flow_info_lines = nl_output.rstrip().split('\n')
+            if not(flow_info_lines[5] == 'end load file') :
+                return self.FAILURE
+            else :
+                self.WMP_status.memory_slot_list[(position-1)].radio_program_name = radio_program_name
+                self.WMP_status.memory_slot_list[(position-1)].radio_program_pointer = radio_program_path
+
+        """ radio program activation """
+        command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -a ' + str(position)
+        nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
+        nl_output = nl_output.decode('ascii')
+        self.log.debug(' bytecode-manager command result : %s' % nl_output)
+        flow_info_lines = nl_output.rstrip().split('\n')
+        if (position == 1 and flow_info_lines[0] == 'Active byte-code 1') or (position == 2 and flow_info_lines[0] == 'Active byte-code 2') :
+            self.WMP_status.memory_slot_active = position
+            return self.SUCCESS
+        else :
+            return self.FAILURE
+
+    @wishful_module.bind_function(upis.radio.set_inactive)
+    def set_inactive(self, myargs):
+        """ radio program activation """
+        radio_program_name = myargs['radio_program_name']
+        command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -d ' + radio_program_name
+        nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
+        flow_info_lines = nl_output.rstrip().split('\n')
+        if flow_info_lines[0] == 'InActive byte-code 1' :
+            return self.SUCCESS
+        elif flow_info_lines[0] == 'InActive byte-code 2' :
+            return self.SUCCESS
+        else :
+            return self.FAILURE
+
+
     #******
     #read
     #******
@@ -569,9 +618,11 @@ class WmpModule(wishful_module_wifi.WifiModule):
         write_share = False
         write_gpr = False
 
+        value = int(value)
         self.log.debug('setRadioProgramParameters(): offset = %s - value = %s' % (str(offset_parameter), str(value)))
         gpr_byte_code_value = b43.shmRead16(b43.B43_SHM_REGS, b43.BYTECODE_ADDR_OFFSET);
         active_slot=0
+
         if  not (offset_parameter==UPI_R.CSMA_CW or offset_parameter==UPI_R.CSMA_CW_MIN or offset_parameter== UPI_R.CSMA_CW_MAX or offset_parameter == UPI_R.REGISTER_1 or offset_parameter == UPI_R.REGISTER_2 or offset_parameter == UPI_R.MAC_ADDR_SYNCHRONIZATION_AP):
             if gpr_byte_code_value == b43.PARAMETER_ADDR_OFFSET_BYTECODE_1 :
                 active_slot = 1
@@ -581,8 +632,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
                 #self.log.debug('detected active slot 2')
             else :
                 self.log.error('readRadioProgramParameters(): no active slot')
-            return False
-
+                return False
 
         if offset_parameter == UPI_R.MAC_ADDR_SYNCHRONIZATION_AP:
             offset_parameter_gpr= b43.MAC_ADDR_SYNCHRONIZATION_AP_GPR

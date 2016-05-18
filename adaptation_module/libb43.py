@@ -264,7 +264,7 @@ class B43:
 			self.f_mmio16read.flush()
 			self.f_mmio16read.seek(0)
 			val = self.f_mmio16read.read()
-		except (IOError, e):
+		except IOError as e:
 			print("Could not access debugfs file %s: %s" % (e.filename, e.strerror))
 			raise B43Exception
 		return int(val, 16)
@@ -277,7 +277,7 @@ class B43:
 			self.f_mmio32read.flush()
 			self.f_mmio32read.seek(0)
 			val = self.f_mmio32read.read()
-		except (IOError, e):
+		except IOError as e:
 			print("Could not access debugfs file %s: %s" % (e.filename, e.strerror))
 			raise B43Exception
 		return int(val, 16)
@@ -290,7 +290,7 @@ class B43:
 			self.f_mmio16write.seek(0)
 			self.f_mmio16write.write("0x%X 0x%X 0x%X" % (reg, mask, set))
 			self.f_mmio16write.flush()
-		except (IOError, e):
+		except IOError as e:
 			print("Could not access debugfs file %s: %s" % (e.filename, e.strerror))
 			raise B43Exception
 		return
@@ -308,7 +308,7 @@ class B43:
 			self.f_mmio32write.seek(0)
 			self.f_mmio32write.write("0x%X 0x%X 0x%X" % (reg, mask, set))
 			self.f_mmio32write.flush()
-		except (IOError, e):
+		except IOError as e:
 			print("Could not access debugfs file %s: %s" % (e.filename, e.strerror))
 			raise B43Exception
 		return
@@ -326,7 +326,7 @@ class B43:
 			self.f_shm16read.flush()
 			self.f_shm16read.seek(0)
 			val = self.f_shm16read.read()
-		except (IOError, e):
+		except IOError as e:
 			print("Could not access debugfs file %s: %s" % (e.filename, e.strerror))
 			raise B43Exception
 		return int(val, 16)
@@ -339,7 +339,7 @@ class B43:
 			self.f_shm16write.seek(0)
 			self.f_shm16write.write("0x%X 0x%X 0x%X 0x%X" % (routing, offset, mask, set))
 			self.f_shm16write.flush()
-		except (IOError, e):
+		except IOError as e:
 			print("Could not access debugfs file %s: %s" % (e.filename, e.strerror))
 			raise B43Exception
 		return
@@ -357,7 +357,7 @@ class B43:
 			self.f_shm32read.flush()
 			self.f_shm32read.seek(0)
 			val = self.f_shm32read.read()
-		except (IOError, e):
+		except IOError as e:
 			print("Could not access debugfs file %s: %s" % (e.filename, e.strerror))
 			raise B43Exception
 		return int(val, 16)
@@ -370,7 +370,7 @@ class B43:
 			self.f_shm32write.seek(0)
 			self.f_shm32write.write("0x%X 0x%X 0x%X 0x%X" % (routing, offset, mask, set))
 			self.f_shm32write.flush()
-		except (IOError, e):
+		except IOError as e:
 			print("Could not access debugfs file %s: %s" % (e.filename, e.strerror))
 			raise B43Exception
 		return
@@ -540,7 +540,7 @@ class B43SymbolicSpr:
 		assembly file containing the symbolic SPR definitions."""
 		try:
 			defs = open(header_file).readlines()
-		except (IOError, e):
+		except IOError as e:
 			print("B43SymbolicSpr: Could not read %s: %s" % (e.filename, e.strerror))
 			B43Exception
 		# Parse the definitions
@@ -576,7 +576,7 @@ class B43SymbolicShm:
 		assembly file containing the symbolic SHM definitions."""
 		try:
 			defs = open(header_file).readlines()
-		except (IOError, e):
+		except IOError as e:
 			print("B43SymbolicShm: Could not read %s: %s" % (e.filename, e.strerror))
 			raise B43Exception
 		# Parse the definitions
@@ -615,7 +615,7 @@ class B43SymbolicCondition:
 		assembly file containing the symbolic condition definitions."""
 		try:
 			defs = open(header_file).readlines()
-		except (IOError, e):
+		except IOError as e:
 			print("B43SymbolicCondition: Could not read %s: %s" % (e.filename, e.strerror))
 			raise B43Exception
 		# Parse the definitions
