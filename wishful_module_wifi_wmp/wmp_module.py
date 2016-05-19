@@ -545,6 +545,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
         radio_program_name = myargs['radio_program_name']
         command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -d ' + radio_program_name
         nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
+        nl_output = nl_output.decode('ascii')
         flow_info_lines = nl_output.rstrip().split('\n')
         if flow_info_lines[0] == 'InActive byte-code 1' :
             return self.SUCCESS
@@ -691,137 +692,137 @@ class WmpModule(wishful_module_wifi.WifiModule):
             b43.shmWrite16(b43.B43_SHM_REGS, offset_parameter_gpr, value)
 
         return self.SUCCESS
-#
-#
-#     def getMonitor(self, myargs):
-#         import subprocess
-#         iw_command_monitor = False
-#         microcode_monitor = False
-#         key = myargs['measurements']
-#         interface = myargs['interface']
-#         self.log.debug('getMonitor(): %s len : %d' % (str(key), len(key)))
-#         ret_lst = []
-#
-#         for ii in range(0,len(key)):
-#             if key[ii] == UPI_R.NUM_TX_SUCCESS:
-#                 iw_command_monitor = True
-#             if key[ii] == UPI_R.NUM_TX:
-#                 microcode_monitor = True
-#             if key[ii] == UPI_R.NUM_TX_DATA_FRAME:
-#                 microcode_monitor = True
-#             if key[ii] == UPI_RN.BUSY_TYME:
-#                 microcode_monitor = True
-#             if key[ii] == UPI_RN.NUM_FREEZING_COUNT:
-#                 microcode_monitor = True
-#             if key[ii] == UPI_RN.TX_ACTIVITY:
-#                 microcode_monitor = True
-#             if key[ii] == UPI_R.NUM_RX:
-#                 microcode_monitor = True
-#             if key[ii] == UPI_RN.NUM_RX_SUCCESS:
-#                 microcode_monitor = True
-#             if key[ii] == UPI_RN.NUM_RX_MATCH:
-#                 microcode_monitor = True
-#             if key[ii] == UPI_RN.TSF:
-#                 microcode_monitor = True
-#             if key[ii] == UPI_RN.REGISTER_1:
-#                 microcode_monitor = True
-#             if key[ii] == UPI_RN.REGISTER_2:
-#                 microcode_monitor = True
-#
-#         if  microcode_monitor:
-#             b43 = B43(b43_phy)
-#
-#         if  iw_command_monitor:
-#             cmd_str = 'iw dev ' + interface + ' station dump'
-#             #self.log.debug('cmd_str: %s' % cmd_str)
-#             cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
-#             #self.log.debug('cmd_output: %s' % cmd_output)
-#             # parse serialized data and create data structures
-#             flow_info_lines = cmd_output.rstrip().split('\n')
-#             #self.log.debug(' row number %d' % len(flow_info_lines))
-#             if len(flow_info_lines) < 3 :
-#                 self.log.error('getMonitor(): iw command error')
-#                 return False
-#
-#             for ii in range(len(flow_info_lines)):
-#                 tmp = flow_info_lines[ii]
-#                 #self.log.debug('%d ) getMonitor(): %s' % (ii, tmp))
-#                 items = tmp.split("\t")
-#                 if ii == 3:
-#                     rx_packet = items[2]
-#                 elif ii == 5:
-#                     tx_packet = items[2]
-#                 elif ii == 6:
-#                     tx_retries = items[2]
-#                 elif ii == 7:
-#                     tx_failed = items[2]
-#                 else:
-#                     continue
-#             tx_packet_success = int(tx_packet)
-#             tx_packet = int(tx_packet) + int(tx_retries) + int(tx_failed)
-#             if tx_packet_success < 0 :
-#                 tx_packet_success = 0
-#
-#         for ii in range(0,len(key)):
-#             if key[ii] == UPI_RN.TSF:
-#                 while True :
-#                         v3 = b43.read16(b43.B43_MMIO_TSF_3)
-#                         v2 = b43.read16(b43.B43_MMIO_TSF_2)
-#                         v1 = b43.read16(b43.B43_MMIO_TSF_1)
-#                         v0 = b43.read16(b43.B43_MMIO_TSF_0)
-#                         test3 = b43.read16(b43.B43_MMIO_TSF_3)
-#                         test2 = b43.read16(b43.B43_MMIO_TSF_2)
-#                         test1 = b43.read16(b43.B43_MMIO_TSF_1)
-#                         if v3 == test3 and v2 == test2 and v1 == test1 :
-#                             break
-#                 ret_lst.append( (v3 << 48) + (v2 << 32) + (v1 << 16) + v0 )
-#             if key[ii] == UPI_RN.BUSY_TYME:
-#                 ret_lst.append( b43.shmRead32(b43.B43_SHM_SHARED, b43.BUSY_TIME_CHANNEL) )
-#                 #self.log.debug('getMonitor(): value 1 : %s ' % value_1)
-#             if key[ii] == UPI_RN.NUM_FREEZING_COUNT:
-#                 ret_lst.append( b43.shmRead16(b43.B43_SHM_SHARED, b43.NUM_FREEZING_COUNT) )
-#                 #self.log.debug('getMonitor(): value 1 : %s ' % value_1)
-#             if key[ii] == UPI_RN.TX_ACTIVITY:
-#                 ret_lst.append( b43.shmRead32(b43.B43_SHM_SHARED, b43.TX_ACTIVITY) )
-#                 #self.log.debug('getMonitor(): value 2 : %s ' % value_2)
-#             if key[ii] == UPI_RN.NUM_RX:
-#                 total_receive = b43.shmRead16(b43.B43_SHM_SHARED, b43.BAD_PLCP_COUNTER)             #trace failure
-#                 total_receive += b43.shmRead16(b43.B43_SHM_SHARED, b43.INVALID_MACHEADER_COUNTER)   #trace failure
-#                 total_receive += b43.shmRead16(b43.B43_SHM_SHARED, b43.BAD_FCS_COUNTER)             #trace failure
-#                 total_receive += b43.shmRead16(b43.B43_SHM_SHARED, b43.RX_TOO_LONG_COUNTER)         #trace failure
-#                 total_receive += b43.shmRead16(b43.B43_SHM_SHARED, b43.RX_TOO_SHORT_COUNTER)        #trace failure
-#                 total_receive += b43.shmRead16(b43.B43_SHM_SHARED, b43.RX_CRS_GLITCH_COUNTER)       #trace failure
-#                 total_receive += b43.shmRead16(b43.B43_SHM_SHARED, b43.GOOD_FCS_COUNTER)            #trace success
-#                 ret_lst.append(total_receive)
-#                 #self.log.debug('getMonitor(): value num_rx : %s ' % total_receive)
-#             if key[ii] == UPI_RN.NUM_RX_SUCCESS:
-#                 ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.GOOD_FCS_COUNTER))
-#                 #value_3 = b43.shmRead32(b43.B43_SHM_SHARED, b43.GOOD_FCS_COUNTER)
-#                 #self.log.debug('getMonitor(): value 2 : %s ' % value_3)
-#             if key[ii] == UPI_RN.NUM_RX_MATCH:
-#                 #ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.GOOD_FCS_MATCH_RA_COUNTER))
-#                 ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.GOOD_FCS_MATCH_RA_COUNTER))
-#                 #ret_lst.append(rx_packet)
-#             if key[ii] == UPI_R.NUM_TX:
-#                ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.TX_COUNTER))
-#             #   ret_lst.append(tx_packet)
-#             if key[ii] == UPI_R.NUM_TX_DATA_FRAME:
-#                 ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.TX_DATA_FRAME_COUNTER))
-#             #    ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.TX_DATA_FRAME_COUNTER))
-#             if key[ii] == UPI_R.NUM_RX_ACK:
-#                 ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.RX_ACK_COUNTER))
-#             #    ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.RX_ACK_COUNTER))
-#             if key[ii] == UPI_R.NUM_RX_ACK_RAMATCH:
-#                 ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.RX_ACK_COUNTER_RAMATCH))
-#             if key[ii] == UPI_R.NUM_TX_SUCCESS:
-#                 ret_lst.append(tx_packet_success)
-#             if key[ii] == UPI_R.REGISTER_1:
-#                 ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.PROCEDURE_REGISTER_1))
-#             if key[ii] == UPI_R.REGISTER_2:
-#                 ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.PROCEDURE_REGISTER_2))
-#
-#         self.log.debug('call result: %s' % ret_lst)
-#         return ret_lst
+
+    @wishful_module.bind_function(upis.radio.get_monitor)
+    def get_monitor(self, myargs):
+        iw_command_monitor = False
+        microcode_monitor = False
+        key = myargs['measurements']
+        interface = myargs['interface']
+        self.log.debug('get_monitor(): %s len : %d' % (str(key), len(key)))
+        ret_lst = []
+
+        for ii in range(0,len(key)):
+            if key[ii] == UPI_R.NUM_TX_SUCCESS:
+                iw_command_monitor = True
+            if key[ii] == UPI_R.NUM_TX:
+                microcode_monitor = True
+            if key[ii] == UPI_R.NUM_TX_DATA_FRAME:
+                microcode_monitor = True
+            if key[ii] == UPI_R.BUSY_TYME:
+                microcode_monitor = True
+            if key[ii] == UPI_R.NUM_FREEZING_COUNT:
+                microcode_monitor = True
+            if key[ii] == UPI_R.TX_ACTIVITY:
+                microcode_monitor = True
+            if key[ii] == UPI_R.NUM_RX:
+                microcode_monitor = True
+            if key[ii] == UPI_R.NUM_RX_SUCCESS:
+                microcode_monitor = True
+            if key[ii] == UPI_R.NUM_RX_MATCH:
+                microcode_monitor = True
+            if key[ii] == UPI_R.TSF:
+                microcode_monitor = True
+            if key[ii] == UPI_R.REGISTER_1:
+                microcode_monitor = True
+            if key[ii] == UPI_R.REGISTER_2:
+                microcode_monitor = True
+
+        if  microcode_monitor:
+            b43 = B43(self.b43_phy)
+
+        if  iw_command_monitor:
+            cmd_str = 'iw dev ' + interface + ' station dump'
+            #self.log.debug('cmd_str: %s' % cmd_str)
+            cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
+            cmd_output = cmd_output.decode('ascii')
+            #self.log.debug('cmd_output: %s' % cmd_output)
+            # parse serialized data and create data structures
+            flow_info_lines = cmd_output.rstrip().split('\n')
+            #self.log.debug(' row number %d' % len(flow_info_lines))
+            if len(flow_info_lines) < 3 :
+                self.log.error('getMonitor(): iw command error')
+                return False
+
+            for ii in range(len(flow_info_lines)):
+                tmp = flow_info_lines[ii]
+                #self.log.debug('%d ) getMonitor(): %s' % (ii, tmp))
+                items = tmp.split("\t")
+                if ii == 3:
+                    rx_packet = items[2]
+                elif ii == 5:
+                    tx_packet = items[2]
+                elif ii == 6:
+                    tx_retries = items[2]
+                elif ii == 7:
+                    tx_failed = items[2]
+                else:
+                    continue
+            tx_packet_success = int(tx_packet)
+            tx_packet = int(tx_packet) + int(tx_retries) + int(tx_failed)
+            if tx_packet_success < 0 :
+                tx_packet_success = 0
+
+        for ii in range(0,len(key)):
+            if key[ii] == UPI_R.TSF:
+                while True :
+                        v3 = b43.read16(b43.B43_MMIO_TSF_3)
+                        v2 = b43.read16(b43.B43_MMIO_TSF_2)
+                        v1 = b43.read16(b43.B43_MMIO_TSF_1)
+                        v0 = b43.read16(b43.B43_MMIO_TSF_0)
+                        test3 = b43.read16(b43.B43_MMIO_TSF_3)
+                        test2 = b43.read16(b43.B43_MMIO_TSF_2)
+                        test1 = b43.read16(b43.B43_MMIO_TSF_1)
+                        if v3 == test3 and v2 == test2 and v1 == test1 :
+                            break
+                ret_lst.append( (v3 << 48) + (v2 << 32) + (v1 << 16) + v0 )
+            if key[ii] == UPI_R.BUSY_TYME:
+                ret_lst.append( b43.shmRead32(b43.B43_SHM_SHARED, b43.BUSY_TIME_CHANNEL) )
+                #self.log.debug('getMonitor(): value 1 : %s ' % value_1)
+            if key[ii] == UPI_R.NUM_FREEZING_COUNT:
+                ret_lst.append( b43.shmRead16(b43.B43_SHM_SHARED, b43.NUM_FREEZING_COUNT) )
+                #self.log.debug('getMonitor(): value 1 : %s ' % value_1)
+            if key[ii] == UPI_R.TX_ACTIVITY:
+                ret_lst.append( b43.shmRead32(b43.B43_SHM_SHARED, b43.TX_ACTIVITY) )
+                #self.log.debug('getMonitor(): value 2 : %s ' % value_2)
+            if key[ii] == UPI_R.NUM_RX:
+                total_receive = b43.shmRead16(b43.B43_SHM_SHARED, b43.BAD_PLCP_COUNTER)             #trace failure
+                total_receive += b43.shmRead16(b43.B43_SHM_SHARED, b43.INVALID_MACHEADER_COUNTER)   #trace failure
+                total_receive += b43.shmRead16(b43.B43_SHM_SHARED, b43.BAD_FCS_COUNTER)             #trace failure
+                total_receive += b43.shmRead16(b43.B43_SHM_SHARED, b43.RX_TOO_LONG_COUNTER)         #trace failure
+                total_receive += b43.shmRead16(b43.B43_SHM_SHARED, b43.RX_TOO_SHORT_COUNTER)        #trace failure
+                total_receive += b43.shmRead16(b43.B43_SHM_SHARED, b43.RX_CRS_GLITCH_COUNTER)       #trace failure
+                total_receive += b43.shmRead16(b43.B43_SHM_SHARED, b43.GOOD_FCS_COUNTER)            #trace success
+                ret_lst.append(total_receive)
+                #self.log.debug('getMonitor(): value num_rx : %s ' % total_receive)
+            if key[ii] == UPI_R.NUM_RX_SUCCESS:
+                ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.GOOD_FCS_COUNTER))
+                #value_3 = b43.shmRead32(b43.B43_SHM_SHARED, b43.GOOD_FCS_COUNTER)
+                #self.log.debug('getMonitor(): value 2 : %s ' % value_3)
+            if key[ii] == UPI_R.NUM_RX_MATCH:
+                #ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.GOOD_FCS_MATCH_RA_COUNTER))
+                ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.GOOD_FCS_MATCH_RA_COUNTER))
+                #ret_lst.append(rx_packet)
+            if key[ii] == UPI_R.NUM_TX:
+               ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.TX_COUNTER))
+            #   ret_lst.append(tx_packet)
+            if key[ii] == UPI_R.NUM_TX_DATA_FRAME:
+                ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.TX_DATA_FRAME_COUNTER))
+            #    ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.TX_DATA_FRAME_COUNTER))
+            if key[ii] == UPI_R.NUM_RX_ACK:
+                ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.RX_ACK_COUNTER))
+            #    ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.RX_ACK_COUNTER))
+            if key[ii] == UPI_R.NUM_RX_ACK_RAMATCH:
+                ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.RX_ACK_COUNTER_RAMATCH))
+            if key[ii] == UPI_R.NUM_TX_SUCCESS:
+                ret_lst.append(tx_packet_success)
+            if key[ii] == UPI_R.REGISTER_1:
+                ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.PROCEDURE_REGISTER_1))
+            if key[ii] == UPI_R.REGISTER_2:
+                ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.PROCEDURE_REGISTER_2))
+
+        self.log.debug('call result: %s' % ret_lst)
+        return ret_lst
 #
 #
 #
