@@ -21,6 +21,27 @@ import os
 import re
 import hashlib
 from tempfile import *
+import ctypes
+
+CLOCK_MONOTONIC_RAW = 4 # see <linux/time.h>
+
+class timespec(ctypes.Structure):
+	_fields_ = [
+	('tv_sec', ctypes.c_long),
+	('tv_nsec', ctypes.c_long)
+	]
+
+librt = ctypes.CDLL('librt.so.1', use_errno=True)
+clock_gettime = librt.clock_gettime
+clock_gettime.argtypes = [ctypes.c_int, ctypes.POINTER(timespec)]
+
+def monotonic_time(self):
+	t = timespec()
+	if clock_gettime(CLOCK_MONOTONIC_RAW , ctypes.pointer(t)) != 0:
+		errno_ = ctypes.get_errno()
+		raise OSError(errno_, os.strerror(errno_))
+	#return t.tv_sec + t.tv_nsec * 1e-9\
+	return t
 
 
 class B43Exception(Exception):
@@ -34,10 +55,6 @@ B43_MACCTL_PSM_MACEN	= 0x00000001
 B43_MACCTL_PSM_RUN	= 0x00000002
 B43_MACCTL_PSM_JMP0	= 0x00000004
 B43_MACCTL_PSM_DEBUG	= 0x00002000
-
-
-
-
 
 class B43PsmDebug:
 	"""Parse the contents of the PSM-debug register"""
@@ -435,6 +452,19 @@ class B43:
 		unconditionally restart the PSM and ignore any driver-state!"""
 		self.maskSet32(B43_MMIO_MACCTL, ~0, B43_MACCTL_PSM_RUN)
 		return
+
+	def getTSFRegs(self):
+		while True :
+			v3 = self.read16(self.B43_MMIO_TSF_3)
+			v2 = self.read16(self.B43_MMIO_TSF_2)
+			v1 = self.read16(self.B43_MMIO_TSF_1)
+			v0 = self.read16(self.B43_MMIO_TSF_0)
+			test3 = self.read16(self.B43_MMIO_TSF_3)
+			test2 = self.read16(self.B43_MMIO_TSF_2)
+			test1 = self.read16(self.B43_MMIO_TSF_1)
+			if v3 == test3 and v2 == test2 and v1 == test1 :
+				break
+		return( (v3 << 48) + (v2 << 32) + (v1 << 16) + v0 )
 
 class Disassembler:
 	"""Disassembler for b43 firmware."""
