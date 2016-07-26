@@ -155,20 +155,20 @@ class WmpModule(wishful_module_wifi.WifiModule):
                         cmd_str = 'rmmod b43'
                         cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
                     time.sleep(1)
-                    cmd_str = 'modprobe b43 qos=0 && sleep 0.5 && ifconfig wlan0 up'
+                    cmd_str = 'modprobe b43 qos=0 && sleep 0.5 && ifconfig wlan0 192.168.0.3'
                     cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
                     self.log.debug('cmd_output: %s' % cmd_output)
 
                 if key[ii] == "association":
                     value_1 = myargs['ssid']
                     value_2 = myargs['ip_address']
-                    cmd_str = '../../agent_modules/wifi_wmpx/network_script/association.sh ' + value_1[ii] + ' ' +value_2[ii]
+                    cmd_str = '../../../agent_modules/wifi_wmp/network_script/association.sh ' + value_1[ii] + ' ' +value_2[ii]
                     subprocess.call(cmd_str, shell=True)
                     self.log.info('------------------------------ end STA association ------------------------')
 
                 if key[ii] == "monitor":
                     value_1 = myargs['channel']
-                    cmd_str = '../../agent_modules/wifi_wmp/network_script/setup_monitor.sh ' + value_1[ii]
+                    cmd_str = '../../../agent_modules/wifi_wmp/network_script/setup_monitor.sh ' + value_1[ii]
                     subprocess.call(cmd_str, shell=True)
                     self.log.info('------------------------------ end STA monitor ------------------------')
 
@@ -176,16 +176,16 @@ class WmpModule(wishful_module_wifi.WifiModule):
                     value_1 = myargs['ssid']
                     value_2 = myargs['ip_address']
 
-                    cmd_str = 'cat ../../agent_modules/wifi_wmp/network_script/hostapd2_start.conf > ./runtime/connectors/wmp_linux/network_script/hostapd2.conf'
+                    cmd_str = 'cat ../../../agent_modules/wifi_wmp/network_script/hostapd2_start.conf > ../../../agent_modules/wifi_wmp/network_script/hostapd2.conf'
                     #self.log.debug('cmd_str: %s' % cmd_str)
                     subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
                     time.sleep(1)
-                    cmd_str = 'echo ssid=' + value_1[ii] + ' >>  ./runtime/connectors/wmp_linux/network_script/hostapd2.conf '
+                    cmd_str = 'echo ssid=' + value_1[ii] + ' >>  ../../../agent_modules/wifi_wmp/network_script/hostapd2.conf '
                     #self.log.debug('cmd_str: %s' % cmd_str)
 
                     subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
                     time.sleep(1)
-                    cmd_str = '../../agent_modules/wifi_wmp/network_script/create_network.sh '  + value_2[ii]
+                    cmd_str = '../../../agent_modules/wifi_wmp/network_script/create_network.sh '  + value_2[ii]
                     #self.log.debug('cmd_str: %s' % cmd_str)
 
                     subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
@@ -213,7 +213,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
         time.sleep(1)
         #self.log.debug('output %s', command)
 
-        command = "../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager --get-interface-name"
+        command = "../../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager --get-interface-name"
         nl_output = ""
 
         try:
@@ -251,7 +251,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
         #get available engines
         exec_engine_current_list_name = []
         exec_engine_current_list_pointer = []
-        with open('../../agent_modules/wifi_wmp/wmp_repository/execution_engine_repository.csv') as csvfile:
+        with open('../../../agent_modules/wifi_wmp/wmp_repository/execution_engine_repository.csv') as csvfile:
             reader = csv.DictReader(csvfile)
 
             for row in reader:
@@ -269,7 +269,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
         #get available repository
         radio_prg_current_list_name = []
         radio_prg_current_list_pointer = []
-        with open('../../agent_modules/wifi_wmp/wmp_repository/radio_program_repository.csv') as csvfile:
+        with open('../../../agent_modules/wifi_wmp/wmp_repository/radio_program_repository.csv') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 #filter for WMP platform
@@ -296,7 +296,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
 
     @wishful_module.bind_function(upis.radio.get_parameter_lower_layer)
     def get_parameter_lower_layer(self, myargs):
-        self.log.warning('get_parameter_lower_layer(): %s' % str(myargs))
+        self.log.warning('get_parameter(): %s' % str(myargs))
         ret_lst = []
 
         # if myargs.has_key('cmd'):
@@ -339,7 +339,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
 
     @wishful_module.bind_function(upis.radio.set_parameter_lower_layer)
     def set_parameter_lower_layer(self, myargs):
-        self.log.warning('setParameterLowerLayer(): %s' % (str(myargs)))
+        self.log.warning('set_parameter: %s' % (str(myargs)))
         ret_lst = []
 
         #manage TDMA slot parameter
@@ -401,7 +401,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
     def get_active(self, myargs):
         self.log.warning('get_active(): ')
         interface = myargs['interface']
-        command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -v'
+        command = '../../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -v'
         nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
         nl_output = nl_output.decode('ascii')
         flow_info_lines = nl_output.rstrip().split('\n')
@@ -423,7 +423,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
     #     if position == None :
     #         position = 1
     #
-    #     command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -l ' + position + ' -m ' + radio_program_path
+    #     command = '../../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -l ' + position + ' -m ' + radio_program_path
     #     #self.log.debug('output %s ', command)
     #
     #     nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
@@ -516,7 +516,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
         #handled only if operation number is great of 3
         self.log.debug('operation : %d - radio_program_name = %s - position = %d - radio_program_path = %s' %  (operation, radio_program_name, position, radio_program_path) )
         if operation > 3 :
-            command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -l ' + str(position) + ' -m ' + radio_program_path
+            command = '../../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -l ' + str(position) + ' -m ' + radio_program_path
             nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
             nl_output = nl_output.decode('ascii')
             self.log.debug(' bytecode-manager command result : %s' % nl_output)
@@ -528,7 +528,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
                 self.WMP_status.memory_slot_list[(position-1)].radio_program_pointer = radio_program_path
 
         """ radio program activation """
-        command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -a ' + str(position)
+        command = '../../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -a ' + str(position)
         nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
         nl_output = nl_output.decode('ascii')
         self.log.debug(' bytecode-manager command result : %s' % nl_output)
@@ -543,7 +543,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
     def set_inactive(self, myargs):
         """ radio program activation """
         radio_program_name = myargs['radio_program_name']
-        command = '../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -d ' + radio_program_name
+        command = '../../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -d ' + radio_program_name
         nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
         nl_output = nl_output.decode('ascii')
         flow_info_lines = nl_output.rstrip().split('\n')
@@ -693,13 +693,13 @@ class WmpModule(wishful_module_wifi.WifiModule):
 
         return self.SUCCESS
 
-    @wishful_module.bind_function(upis.radio.get_monitor)
-    def get_monitor(self, myargs):
+    @wishful_module.bind_function(upis.radio.get_measurement)
+    def get_measurement(self, myargs):
         iw_command_monitor = False
         microcode_monitor = False
         key = myargs['measurements']
         interface = myargs['interface']
-        self.log.debug('get_monitor(): %s len : %d' % (str(key), len(key)))
+        self.log.debug('get_measurement(): %s len : %d' % (str(key), len(key)))
         ret_lst = []
 
         for ii in range(0,len(key)):
@@ -1393,653 +1393,13 @@ class WmpModule(wishful_module_wifi.WifiModule):
 #         ip = ni.ifaddresses(iface)[2][0]['addr']
 #         return ip
 #
-#
-#     """
-#     UPI_R implementation specific for atheros
-#     """
-#     def installMacProcessor(self, param_key):
-#         """
-#         Func Desc
-#         """
-#         return
-#
-#     def updateMacProcessor(self, param_key):
-#         """
-#         Func Desc
-#         """
-#         return
-#
-#     def uninstallMacProcessor(self, param_key):
-#         """
-#         Func Desc
-#         """
-#         return
-#
-#     """
-#     UPI_N implementation
-#     """
-#     def getParameterHigherLayer(self, myargs):
-#         cmd = myargs['cmd']
-#         self.log.debug('getParameterHigherLayer(): %s' % str(cmd))
-#         if cmd == UPI_N.IFACE_IP_ADDR:
-#             return self.getIfaceIpAddr(myargs)
-#         else:
-#             self.log.error('getParameterHigherLayer(): unknown parameter')
-#
-#     def setParameterHigherLayer(self, myargs):
-#         self.log.debug('setParameterHigherLayer(): %s->%s' % (str(myargs['cmd']), str(myargs)))
-#         return True
-#
-#     def startIperfServer(self, myargs):
-#         import os, sys, time, subprocess
-#
-#         self.log.debug('Slave: Start Iperf Server')
-#
-#         cmd = str("killall -9 iperf")
-#         os.system(cmd);
-#
-#         throughput = None
-#
-#         cmd = ['/usr/bin/iperf','-s','-p', '5001']
-#         process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-#         lines_iterator = iter(process.stdout.readline, b"")
-#         for line in lines_iterator:
-#             throughput = self.helper_parseIperf(line)
-#             if throughput:
-#                 break
-#
-#         process.kill()
-#         self.log.debug('Server side Throughput : ' + str(throughput))
-#         sys.stdout.flush()
-#         msg = {"type": "Server",
-#             "throughput" : throughput}
-#         return msg
-#
-#     def startIperfClient(self, myargs):
-#         import os, sys, time, subprocess
-#
-#         self.log.debug('Slave: Start Iperf Client')
-#         self.log.debug('margs = %s' % str(myargs))
-#         ServerIp =  myargs['ServerIp']
-#
-#         throughput = None
-#
-#         cmd = ['/usr/bin/iperf','-c', ServerIp, '-p', '5001','-t','10']
-#         process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-#         lines_iterator = iter(process.stdout.readline, b"")
-#         for line in lines_iterator:
-#             throughput = self.helper_parseIperf(line)
-#             if throughput:
-#                 break
-#
-#         process.kill()
-#         self.log.debug('Client Side Throughput : ' + str(throughput))
-#         sys.stdout.flush()
-#         msg = {"type": "Client",
-#                 "throughput" : throughput}
-#         return msg
-#
-#     def startPing(self, myargs):
-#         import ping
-#         import logging
-#
-#         log = logging.getLogger()
-#         srcAddress =  myargs['srcAddress']
-#         dstAddress =  myargs['dstAddres']
-#         log.debug('Slave: Ping address: %s' % str(dstAddress))
-#
-#         [percentLost, maxRtt, avgRtt] = ping.quiet_ping(dest_addr=dstAddress,
-#             interval = 0.2, count = 10, timeout = 2)
-#
-#         log.debug('Connection to {0} : AvgDelay={1}, MaxDelay={2}, Loss={3}'
-#             .format(str(dstAddress), str(avgRtt), str(maxRtt), str(percentLost)))
-#
-#         msg = {
-#             "SrcAddress" : srcAddress,
-#             "DstAddres" : dstAddress,
-#             "AvgRtt" : avgRtt,
-#             "MaxRtt" : maxRtt,
-#             "Loss" : percentLost
-#         }
-#
-#         return msg
-#
-#     def setProfile(self, myargs):
-#         import pickle
-#         from pytc.TrafficControl import TrafficControl
-#         from pytc.Profile import Profile
-#
-#         log = logging.getLogger()
-#         log.info('Function: setProfile')
-#         log.info('margs = %s' % str(myargs))
-#         interface = myargs["interface"]
-#         profile = pickle.loads(myargs["profile"])
-#
-#         tcMgr = TrafficControl()
-#         intface = tcMgr.getInterface(interface)
-#         intface.setProfile(profile)
-#
-#
-#     def updateProfile(self, myargs):
-#         import pickle
-#         from pytc.TrafficControl import TrafficControl
-#         from pytc.Profile import Profile
-#
-#         log = logging.getLogger()
-#         log.info('Function: updateProfile')
-#         log.info('margs = %s' % str(myargs))
-#         interface = myargs["interface"]
-#         profile = pickle.loads(myargs["profile"])
-#
-#         tcMgr = TrafficControl()
-#         intface = tcMgr.getInterface(interface)
-#         intface.updateProfile(profile)
-#
-#
-#     def removeProfile(self, myargs):
-#         from pytc.TrafficControl import TrafficControl
-#         from pytc.Profile import Profile
-#
-#         log = logging.getLogger()
-#         log.info('Function: removeProfile')
-#         log.info('margs = %s' % str(myargs))
-#         interface = myargs["interface"]
-#
-#         tcMgr = TrafficControl()
-#         intface = tcMgr.getInterface(interface)
-#         intface.clean()
-#
-#
-#     def setPerLinkProfile(self, myargs):
-#         import pickle
-#         from pytc.TrafficControl import TrafficControl
-#         from pytc.Profile import Profile
-#
-#         log = logging.getLogger()
-#         log.info('Function: setPerLinkProfile')
-#         log.info('margs = %s' % str(myargs))
-#         interface = myargs["interface"]
-#         dstNodeIp = myargs["dstNodeIp"]
-#         profile = pickle.loads(myargs["profile"])
-#
-#         tcMgr = TrafficControl()
-#         intface = tcMgr.getInterface(interface)
-#         intface.setPerLinkProfile(profile, dstNodeIp)
-#
-#
-#     def updatePerLinkProfile(self, myargs):
-#         import pickle
-#         from pytc.TrafficControl import TrafficControl
-#         from pytc.Profile import Profile
-#
-#         log = logging.getLogger()
-#         log.info('Function: updatePerLinkProfile')
-#         log.info('margs = %s' % str(myargs))
-#         interface = myargs["interface"]
-#         dstNodeIp = myargs["dstNodeIp"]
-#         profile = pickle.loads(myargs["profile"])
-#
-#         tcMgr = TrafficControl()
-#         intface = tcMgr.getInterface(interface)
-#         intface.updatePerLinkProfile(profile, dstNodeIp)
-#
-#
-#     def removePerLinkProfile(self, myargs):
-#         from pytc.TrafficControl import TrafficControl
-#         from pytc.Profile import Profile
-#
-#         log = logging.getLogger()
-#         log.info('Function: removePerLinkProfile')
-#         log.info('margs = %s' % str(myargs))
-#         interface = myargs["interface"]
-#         dstNodeIp = myargs["dstNodeIp"]
-#
-#         tcMgr = TrafficControl()
-#         intface = tcMgr.getInterface(interface)
-#         intface.cleanPerLinkProfile(dstNodeIp)
-#
-#
-#     def installEgressScheduler(self, myargs):
-#         from pytc.TrafficControl import TrafficControl
-#         import pytc.Qdisc
-#         import pytc.Filter
-#         import pickle
-#
-#         log = logging.getLogger()
-#         log.info('Function: installEgressScheduler')
-#         log.info('margs = %s' % str(myargs))
-#
-#         interface = myargs["interface"]
-#         scheduler = pickle.loads(myargs["scheduler"])
-#
-#         tcMgr = TrafficControl()
-#         iface = tcMgr.getInterface(interface)
-#         iface.setEgressScheduler(scheduler)
-#
-#     def removeEgressScheduler(self, myargs):
-#         from pytc.TrafficControl import TrafficControl
-#         import pytc.Qdisc
-#         import pytc.Filter
-#         import pickle
-#
-#         log = logging.getLogger()
-#         log.info('Function: removeEgressScheduler')
-#         log.info('margs = %s' % str(myargs))
-#
-#         interface = myargs["interface"]
-#
-#         tcMgr = TrafficControl()
-#         iface = tcMgr.getInterface(interface)
-#         iface.clean()
-#         tcMgr.cleanIpTables()
-#
-#     def clearIpTables(self, myargs):
-#         from pytc.Filter import FlowDesc
-#         import iptc
-#         import pickle
-#
-#         log = logging.getLogger()
-#         log.info('Function: clearIpTables')
-#         log.info('margs = %s' % str(myargs))
-#
-#         table = myargs["table"]
-#         chain = myargs["chain"]
-#
-#         tables = []
-#         chains = {}
-#
-#         if table == "ALL":
-#             tables = ["raw", "mangle", "nat", "filter"]
-#         else:
-#             if not isinstance(table, list):
-#                 table = [table]
-#             tables.extend(table)
-#
-#         if chain == "ALL":
-#             chains["filter"] = ["INPUT","FORWARD","OUTPUT"]
-#             chains["nat"] = ["PREROUTING", "OUTPUT", "POSTROUTING"]
-#             chains["mangle"] = ["PREROUTING", "OUTPUT", "INPUT", "FORWARD", "POSTROUTING"]
-#             chains["raw"] = ["PREROUTING", "OUTPUT"]
-#         else:
-#             if not isinstance(chain, list):
-#                 chain = [chain]
-#             chains[tables[0]].extend(chain)
-#
-#         for tableName in tables:
-#             for chainName in chains[tableName]:
-#                 chain = iptc.Chain(iptc.Table(tableName), chainName)
-#                 chain.flush()
-#
-#
-#     def getIpTable(self, myargs):
-#         import iptc
-#         import logging
-#         import pickle
-#         import copy
-#
-#         log = logging.getLogger()
-#         log.info('Function: getIpTable')
-#         log.info('margs = %s' % str(myargs))
-#         tableName = myargs["table"]
-#         chainName = myargs["chain"]
-#
-#         # exec embedded function
-#         table = iptc.Table(tableName)
-#         #refresh table to get current counters
-#         table.refresh()
-#         #create simple table (ie. without pointers to ctypes)
-#         simpleTable = iptc.SimpleTable(table)
-#         return pickle.dumps(simpleTable)
-#
-#     def setMarking(self, myargs):
-#         from pytc.Filter import FlowDesc
-#         import iptc
-#         import pickle
-#
-#         log = logging.getLogger()
-#         log.info('Function: setMarking')
-#         log.info('margs = %s' % str(myargs))
-#
-#         flowDesc = pickle.loads(myargs["flowDesc"])
-#         if "markId" in myargs:
-#             markId = myargs["markId"]
-#         else:
-#             tcMgr = TrafficControl()
-#             markId = tcMgr.generateMark()
-#
-#         if "table" in myargs:
-#             table = myargs["table"]
-#         else:
-#             table = "mangle"
-#
-#         if "chain" in myargs:
-#             chain = myargs["chain"]
-#         else:
-#             chain = "POSTROUTING"
-#
-#         rule = iptc.Rule()
-#
-#         if flowDesc.mSrcAddress is not None:
-#             rule.src = flowDesc.mSrcAddress
-#
-#         if flowDesc.mDstAddress is not None:
-#             rule.dst = flowDesc.mDstAddress
-#
-#         if flowDesc.mProt is not None:
-#             rule.protocol = flowDesc.mProt
-#             match = iptc.Match(rule, flowDesc.mProt)
-#
-#             if flowDesc.mSrcPort is not None:
-#                 match.sport = flowDesc.mSrcPort
-#
-#             if flowDesc.mDstPort is not None:
-#                 match.dport = flowDesc.mDstPort
-#
-#             rule.add_match(match)
-#
-#         target = iptc.Target(rule, "MARK")
-#         target.set_mark = str(markId)
-#         rule.target = target
-#         chain = iptc.Chain(iptc.Table(table), chain)
-#         chain.insert_rule(rule)
-#
-#     def delMarking(self, myargs):
-#         from pytc.Filter import FlowDesc
-#         import iptc
-#         import pickle
-#
-#         log = logging.getLogger()
-#         log.info('Function: delMarking')
-#         log.info('margs = %s' % str(myargs))
-#
-#         flowDesc = pickle.loads(myargs["flowDesc"])
-#         markId = myargs["markId"]
-#         chain = myargs["chain"]
-#         table = myargs["table"]
-#
-#         rule = iptc.Rule()
-#
-#         if flowDesc.mSrcAddress is not None:
-#             rule.src = flowDesc.mSrcAddress
-#
-#         if flowDesc.mDstAddress is not None:
-#             rule.dst = flowDesc.mDstAddress
-#
-#         if flowDesc.mProt is not None:
-#             rule.protocol = flowDesc.mProt
-#             match = iptc.Match(rule, flowDesc.mProt)
-#
-#             if flowDesc.mSrcPort is not None:
-#                 match.sport = flowDesc.mSrcPort
-#
-#             if flowDesc.mDstPort is not None:
-#                 match.dport = flowDesc.mDstPort
-#
-#             rule.add_match(match)
-#
-#         target = iptc.Target(rule, "MARK")
-#         target.set_mark = str(markId)
-#         rule.target = target
-#         chain = iptc.Chain(iptc.Table(table), chain)
-#         chain.delete_rule(rule)
-#
-#     def setTos(self, myargs):
-#         from pytc.Filter import FlowDesc
-#         import iptc
-#         import pickle
-#
-#         log = logging.getLogger()
-#         log.info('Function: setTos')
-#         log.info('margs = %s' % str(myargs))
-#
-#         flowDesc = pickle.loads(myargs["flowDesc"])
-#         tos = myargs["tos"]
-#         chain = myargs["chain"]
-#         table = myargs["table"]
-#
-#         rule = iptc.Rule()
-#
-#         if flowDesc.mSrcAddress is not None:
-#             rule.src = flowDesc.mSrcAddress
-#
-#         if flowDesc.mDstAddress is not None:
-#             rule.dst = flowDesc.mDstAddress
-#
-#         if flowDesc.mProt is not None:
-#             rule.protocol = flowDesc.mProt
-#             match = iptc.Match(rule, flowDesc.mProt)
-#
-#             if flowDesc.mSrcPort is not None:
-#                 match.sport = flowDesc.mSrcPort
-#
-#             if flowDesc.mDstPort is not None:
-#                 match.dport = flowDesc.mDstPort
-#
-#             rule.add_match(match)
-#
-#         target = iptc.Target(rule, "TOS")
-#         target.set_tos = str(tos)
-#         rule.target = target
-#         chain = iptc.Chain(iptc.Table(table), chain)
-#         chain.insert_rule(rule)
-#
-#
-#     def delTos(self, myargs):
-#         from pytc.Filter import FlowDesc
-#         import iptc
-#         import pickle
-#
-#         log = logging.getLogger()
-#         log.info('Function: delTos')
-#         log.info('margs = %s' % str(myargs))
-#
-#         flowDesc = pickle.loads(myargs["flowDesc"])
-#         tos = myargs["tos"]
-#         chain = myargs["chain"]
-#         table = myargs["table"]
-#
-#         rule = iptc.Rule()
-#
-#         if flowDesc.mSrcAddress is not None:
-#             rule.src = flowDesc.mSrcAddress
-#
-#         if flowDesc.mDstAddress is not None:
-#             rule.dst = flowDesc.mDstAddress
-#
-#         if flowDesc.mProt is not None:
-#             rule.protocol = flowDesc.mProt
-#             match = iptc.Match(rule, flowDesc.mProt)
-#
-#             if flowDesc.mSrcPort is not None:
-#                 match.sport = flowDesc.mSrcPort
-#
-#             if flowDesc.mDstPort is not None:
-#                 match.dport = flowDesc.mDstPort
-#
-#             rule.add_match(match)
-#
-#         target = iptc.Target(rule, "TOS")
-#         target.set_tos = str(tos)
-#         rule.target = target
-#         chain = iptc.Chain(iptc.Table(table), chain)
-#         chain.delete_rule(rule)
-#
-#     def installApplication(self, myargs):
-#         import pickle
-#         from helpers.application import ServerApplication, ClientApplication
-#
-#         log = logging.getLogger()
-#         log.info('Function: installApplication')
-#         log.info('margs = %s' % str(myargs))
-#
-#         app = pickle.loads(myargs["app"])
-#         appType = app.type
-#         port = app.port
-#         protocol = app.protocol
-#
-#
-#         if appType == "Server":
-#             log.info('Installing Server application')
-#
-#             #cmd = str("killall -9 iperf")
-#             #os.system(cmd);
-#             bind = app.bind
-#
-#             cmd = ['/usr/bin/iperf','-s','-i','1']
-#             if protocol == "TCP":
-#                 pass
-#             elif protocol == "UDP":
-#                 cmd.extend(['-u'])
-#
-#             if port:
-#                 cmd.extend(['-p', str(port)])
-#
-#             if bind:
-#                 cmd.extend(['-B', str(bind)])
-#
-#             cmd.extend(['--reportstyle','C'])
-#             cmd.extend(['>iperf_server.log'])
-#
-#             # throughput = None
-#             # process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-#             # lines_iterator = iter(process.stdout.readline, b"")
-#             # for line in lines_iterator:
-#             #     throughput = self.helper_parseIperf(line)
-#             #     if throughput:
-#             #         break
-#
-#             self.log.warning(" cmd string : %s", str(cmd))
-#             num_res = 0
-#             #TODO start from zero and increase this variable when a connecton is detected
-#             num_of_connection = 2
-#             flag = 0
-#             throughput = 0
-#             process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-#             lines_iterator = iter(process.stdout.readline, b"")
-#             for line in lines_iterator:
-#                  filename = 'file_log.csv'
-#                  if flag == 0:
-#                     out_file = open(filename, 'w')
-#                     flag = 1
-#                     out_file.write(line)
-#                  else:
-#                     out_file = open(filename, 'a')
-#                     out_file.write(line)
-#
-# #                self.log.debug("line: %s", line)
-#                  throughput = self.helper_parseIperf(line)
-#                  if throughput:
-#
-#                     if num_res == num_of_connection:
-#                         break
-#                     else:
-#                         num_res += 1
-#
-#             process.kill()
-#             self.log.debug('Server side Throughput : ' + str(throughput))
-#             sys.stdout.flush()
-#             msg = {"type": "Server",
-#                 "throughput" : throughput}
-#             return msg
-#
-#         elif appType == "Client":
-#             log.info('Installing Client application')
-#
-#             serverIp =  app.destination
-#             udpBandwidth = app.udpBandwidth
-#             dualTest = app.dualtest
-#             dataToSend = app.dataToSend
-#             transmissionTime = app.transmissionTime
-#             frameLen = app.frameLen
-#
-#             cmd = ['/usr/bin/iperf','-c', serverIp]
-#
-#             if protocol == "TCP":
-#                 pass
-#             elif protocol == "UDP":
-#                 cmd.extend(['-u'])
-#                 if udpBandwidth:
-#                     cmd.extend(['-b', str(udpBandwidth)])
-#
-#             if port:
-#                 cmd.extend(['-p', str(port)])
-#
-#             if dualTest:
-#                 cmd.extend(['-d'])
-#
-#             if dataToSend:
-#                 cmd.extend(['-n', str(dataToSend)])
-#
-#             if transmissionTime:
-#                 cmd.extend(['-t', str(transmissionTime)])
-#
-#             if frameLen:
-#                 cmd.extend(['-l', str(frameLen)])
-#
-#             throughput = None
-#             process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-#             lines_iterator = iter(process.stdout.readline, b"")
-#             for line in lines_iterator:
-#                 throughput = self.helper_parseIperf(line)
-#                 if throughput:
-#                     break
-#
-#             process.kill()
-#             self.log.debug('Client Side Throughput : ' + str(throughput))
-#             sys.stdout.flush()
-#             msg = {"type": "Client",
-#                     "throughput" : throughput}
-#             return msg
-#
-#         elif appType == "RawperfClient":
-#             log.info('Installing Rawperf Client application')
-#
-#             serverMAC =  app.destination
-#             udpBandwidth = app.udpBandwidth
-#             dualTest = app.dualtest
-#             dataToSend = app.dataToSend
-#             waitTime = app.waitTime
-#             frameLen = app.frameLen
-#             transmissionTime = app.transmissionTime
-#
-#             cmd = ['./runtime/connectors/wmp_linux/network_script/association.sh','-s', serverMAC]
-#
-#             if transmissionTime:
-#                 cmd.extend(['-t', str(transmissionTime)])
-#
-#             if waitTime:
-#                 cmd.extend(['-w', str(waitTime)])
-#
-#             if frameLen:
-#                 cmd.extend(['-l', str(frameLen)])
-#
-#             # throughput = None
-#             process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-#             # lines_iterator = iter(process.stdout.readline, b"")
-#             # for line in lines_iterator:
-#             #     throughput = self.helper_parseIperf(line)
-#             #     if throughput:
-#             #         break
-#
-#             time.sleep(waitTime)
-#             process.kill()
-#
-#             # self.log.debug('Client Side Throughput : ' + str(throughput))
-#             # sys.stdout.flush()
-#             # msg = {"type": "Client",
-#             #         "throughput" : throughput}
-#             msg = {"type": "RawperfClient",
-#                      "throughput" : "NULL"}
-#
-#             return msg
-#
-#         else:
-#             log.info('Application Type not supported')
-#
-#     def getNetworkInfo(self,myargs):
-#         raise ValueError('Not yet implemented')
-
-
+    @wishful_module.bind_function(upis.radio.get_iface_ip_addr)
+    def get_iface_ip_addr(self, iface):
+        import netifaces as ni
+        #this function need the interface UP (modprobe b43)
+        ip = ni.ifaddresses(iface)[2][0]['addr']
+        self.log.debug('get_iface_ip_addr(): %s' % (str(ip)))
+        return ip
 
     # @wishful_module.bind_function(upis.radio.set_mac_access_parameters)
     # def setEdcaParameters(self, queueId, queueParams):
@@ -2092,115 +1452,6 @@ class WmpModule(wishful_module_wifi.WifiModule):
     #     except Exception as e:
     #         self.log.fatal("Operation not supported: %s" % e)
     #         raise exceptions.UPIFunctionExecutionFailedException(func_name='radio.get_mac_access_parameters', err_msg='cannot open file')
-    #
-    #
-    # @wishful_module.bind_function(upis.radio.set_per_flow_tx_power)
-    # def set_per_flow_tx_power(self, flowId, txPower):
-    #     self.log.debug('set_per_flow_tx_power on iface: {}'.format(self.interface))
-    #
-    #     tcMgr = TrafficControl()
-    #     markId = tcMgr.generateMark()
-    #     self.setMarking(flowId, table="mangle", chain="POSTROUTING", markId=markId)
-    #
-    #     cmd_str = ('sudo iw ' + self.interface + ' info')
-    #     cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
-    #
-    #     for item in cmd_output.split("\n"):
-    #          if "wiphy" in item:
-    #             line = item.strip()
-    #
-    #     phyId = [int(s) for s in line.split() if s.isdigit()][0]
-    #
-    #     try:
-    #         myfile = open('/sys/kernel/debug/ieee80211/phy'+str(phyId)+'/ath9k/per_flow_tx_power', 'w')
-    #         value = str(markId) + " " + str(txPower) + " 0"
-    #         myfile.write(value)
-    #         myfile.close()
-    #         return "OK"
-    #     except Exception as e:
-    #         self.log.fatal("Operation not supported: %s" % e)
-    #         raise exceptions.UPIFunctionExecutionFailedException(func_name='radio.set_per_flow_tx_power', err_msg='cannot open file')
-    #
-    #
-    # def setMarking(self, flowId, table="mangle", chain="POSTROUTING", markId=None):
-    #
-    #     if not markId:
-    #         tcMgr = TrafficControl()
-    #         markId = tcMgr.generateMark()
-    #
-    #     rule = iptc.Rule()
-    #
-    #     if flowId.srcAddress:
-    #         rule.src = flowId.srcAddress
-    #
-    #     if flowId.dstAddress:
-    #         rule.dst = flowId.dstAddress
-    #
-    #     if flowId.prot:
-    #         rule.protocol = flowId.prot
-    #         match = iptc.Match(rule, flowId.prot)
-    #
-    #         if flowId.srcPort:
-    #             match.sport = flowId.srcPort
-    #
-    #         if flowId.dstPort:
-    #             match.dport = flowId.dstPort
-    #
-    #         rule.add_match(match)
-    #
-    #     target = iptc.Target(rule, "MARK")
-    #     target.set_mark = str(markId)
-    #     rule.target = target
-    #     chain = iptc.Chain(iptc.Table(table), chain)
-    #     chain.insert_rule(rule)
-    #
-    #
-    # @wishful_module.bind_function(upis.radio.clean_per_flow_tx_power_table)
-    # def clean_per_flow_tx_power_table(self):
-    #     self.log.debug('clean_per_flow_tx_power_table on iface: {}'.format(self.interface))
-    #
-    #     cmd_str = ('sudo iw ' + self.interface + ' info')
-    #     cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
-    #
-    #     for item in cmd_output.split("\n"):
-    #          if "wiphy" in item:
-    #             line = item.strip()
-    #
-    #     phyId = [int(s) for s in line.split() if s.isdigit()][0]
-    #
-    #     try:
-    #         myfile = open('/sys/kernel/debug/ieee80211/phy'+str(phyId)+'/ath9k/per_flow_tx_power', 'w')
-    #         value = "0 0 0"
-    #         myfile.write(value)
-    #         myfile.close()
-    #         return "OK"
-    #     except Exception as e:
-    #         self.log.fatal("Operation not supported: %s" % e)
-    #         raise exceptions.UPIFunctionExecutionFailedException(func_name='radio.clean_per_flow_tx_power_table', err_msg='cannot open file')
-    #
-    #
-    # @wishful_module.bind_function(upis.radio.get_per_flow_tx_power_table)
-    # def get_per_flow_tx_power_table(self):
-    #     self.log.debug('get_per_flow_tx_power_table on iface: {}'.format(self.interface))
-    #
-    #     cmd_str = ('sudo iw ' + self.interface + ' info')
-    #     cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
-    #
-    #     for item in cmd_output.split("\n"):
-    #          if "wiphy" in item:
-    #             line = item.strip()
-    #
-    #     phyId = [int(s) for s in line.split() if s.isdigit()][0]
-    #
-    #     try:
-    #         myfile = open('/sys/kernel/debug/ieee80211/phy'+str(phyId)+'/ath9k/per_flow_tx_power', 'r')
-    #         data = myfile.read()
-    #         myfile.close()
-    #         return data
-    #     except Exception as e:
-    #         self.log.fatal("Operation not supported: %s" % e)
-    #         raise exceptions.UPIFunctionExecutionFailedException(func_name='radio.get_per_flow_tx_power_table', err_msg='cannot open file')
-    #
     #
     # @wishful_module.bind_function(upis.radio.get_noise)
     # def get_noise(self):

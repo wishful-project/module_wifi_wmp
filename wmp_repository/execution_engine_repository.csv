@@ -1,4 +1,4 @@
 execution_engine_id,execution_engine_name,supported_platform,execution_engine_pointer
-1,WMPengine,WMP,../../agent_modules/wifi_wmp/execution_engine/wmp
-2,FACTORYengine,WMP,../../agent_modules/wifi_wmp/execution_engine/factory
+1,WMPengine,WMP,../../../agent_modules/wifi_wmp/execution_engine/wmp
+2,FACTORYengine,WMP,../../../agent_modules/wifi_wmp/execution_engine/factory
 
