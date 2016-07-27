@@ -1,5 +1,7 @@
-WiSHFUL ATH Modules
+WiSHFUL WMP Modules
 ============================
+
+For any information or issue, please contact Domenico Garlisi at domenico.garlisi@cnit.it
 
 This is a prototypic implementation of a wireless agent providing the Unified
 Programming Interfaces (UPIs) of the Wishful software platform for

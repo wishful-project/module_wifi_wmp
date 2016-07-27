@@ -98,7 +98,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
     UPI_M implementation
     """
 
-    @wishful_module.bind_function(upis.radio.install_execution_engine)
+    @wishful_module.bind_function(upis.wmp.radio.install_execution_engine)
     def install_execution_engine(self, myargs):
         execution_engine_value = None
         module_value = None
@@ -137,10 +137,10 @@ class WmpModule(wishful_module_wifi.WifiModule):
 
         return True
 
-    @wishful_module.bind_function(upis.radio.init_test)
+    @wishful_module.bind_function(upis.wmp.radio.init_test)
     def init_test(self, myargs):
         import subprocess
-        self.log.warning('initTest(): %s' % str(myargs) )
+        self.log.warning('init_test(): %s' % str(myargs) )
         key = myargs['operation']
         interface = myargs['interface']
         try:
@@ -294,8 +294,8 @@ class WmpModule(wishful_module_wifi.WifiModule):
         self.log.debug("ret_lst %s " %  ret_lst )
         return ret_lst
 
-    @wishful_module.bind_function(upis.radio.get_parameter_lower_layer)
-    def get_parameter_lower_layer(self, myargs):
+    @wishful_module.bind_function(upis.radio.get_parameters)
+    def get_parameters(self, myargs):
         self.log.warning('get_parameter(): %s' % str(myargs))
         ret_lst = []
 
@@ -328,17 +328,17 @@ class WmpModule(wishful_module_wifi.WifiModule):
                 elif key_parameter[ii] == UPI_R.TDMA_ALLOCATED_SLOT:
                     ret_lst.append( self.readRadioProgramParameters(UPI_R.TDMA_ALLOCATED_SLOT) )
                 else:
-                    self.log.error('get_parameter_lower_layer(): unknown parameter with parameters (parameters)')
+                    self.log.error('get_parameters(): unknown parameter with parameters (parameters)')
 
-        self.log.debug('get_parameter_lower_layer() exit : %s' % str(ret_lst))
+        self.log.debug('get_parameters() exit : %s' % str(ret_lst))
         return ret_lst
 
     # def defineEvent(self, myargs):
     #     raise ValueError('Not yet implemented')
     #
 
-    @wishful_module.bind_function(upis.radio.set_parameter_lower_layer)
-    def set_parameter_lower_layer(self, myargs):
+    @wishful_module.bind_function(upis.radio.set_parameters)
+    def set_parameters(self, myargs):
         self.log.warning('set_parameter: %s' % (str(myargs)))
         ret_lst = []
 
@@ -397,9 +397,9 @@ class WmpModule(wishful_module_wifi.WifiModule):
 
         return ret_lst
 
-    @wishful_module.bind_function(upis.radio.get_active)
-    def get_active(self, myargs):
-        self.log.warning('get_active(): ')
+    @wishful_module.bind_function(upis.radio.get_running_radio_program)
+    def get_running_radio_program(self, myargs):
+        self.log.warning('get_running_radio_program(): ')
         interface = myargs['interface']
         command = '../../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -v'
         nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
@@ -438,12 +438,12 @@ class WmpModule(wishful_module_wifi.WifiModule):
     #         self.log.debug('Radio program inject error')
     #         return False
 
-    @wishful_module.bind_function(upis.radio.set_active)
-    def set_active(self,  myargs):
+    @wishful_module.bind_function(upis.radio.activate_radio_program)
+    def activate_radio_program(self,  myargs):
         position = None
         radio_program_path = ''
         radio_program_name = ''
-        self.log.warning('set_active(): %s ' %  str(myargs))
+        self.log.warning('activate_radio_program(): %s ' %  str(myargs))
 
         if 'position' in myargs:
             if (myargs['position'] == '1'):
@@ -539,8 +539,8 @@ class WmpModule(wishful_module_wifi.WifiModule):
         else :
             return self.FAILURE
 
-    @wishful_module.bind_function(upis.radio.set_inactive)
-    def set_inactive(self, myargs):
+    @wishful_module.bind_function(upis.radio.deactivate_radio_program)
+    def deactivate_radio_program(self, myargs):
         """ radio program activation """
         radio_program_name = myargs['radio_program_name']
         command = '../../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -d ' + radio_program_name
@@ -693,13 +693,13 @@ class WmpModule(wishful_module_wifi.WifiModule):
 
         return self.SUCCESS
 
-    @wishful_module.bind_function(upis.radio.get_measurement)
-    def get_measurement(self, myargs):
+    @wishful_module.bind_function(upis.radio.get_measurements)
+    def get_measurements(self, myargs):
         iw_command_monitor = False
         microcode_monitor = False
         key = myargs['measurements']
         interface = myargs['interface']
-        self.log.debug('get_measurement(): %s len : %d' % (str(key), len(key)))
+        self.log.debug('get_measurements(): %s len : %d' % (str(key), len(key)))
         ret_lst = []
 
         for ii in range(0,len(key)):
@@ -1393,7 +1393,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
 #         ip = ni.ifaddresses(iface)[2][0]['addr']
 #         return ip
 #
-    @wishful_module.bind_function(upis.radio.get_iface_ip_addr)
+    @wishful_module.bind_function(upis.wmp.radio.get_iface_ip_addr)
     def get_iface_ip_addr(self, iface):
         import netifaces as ni
         #this function need the interface UP (modprobe b43)
