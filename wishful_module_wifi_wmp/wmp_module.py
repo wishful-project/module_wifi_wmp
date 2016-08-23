@@ -73,11 +73,13 @@ class WMP_info_t:
 
 @wishful_module.build_module
 class WmpModule(wishful_module_wifi.WifiModule):
-    def __init__(self):
+    def __init__(self, executionEngine="factory"):
         super(WmpModule, self).__init__()
         self.log = logging.getLogger('WmpModule')
-        self.channel = 1
-        self.power = 1
+        self.channel = 6
+        self.power = 15
+        self.modulation_rate = 24
+        self.wlan_interface = "wlan0"
 
         self.SUCCESS = 0
         self.PARTIAL_SUCCESS = 1
@@ -89,16 +91,32 @@ class WmpModule(wishful_module_wifi.WifiModule):
         global radio_info
         self.WMP_status = WMP_info_t()
         self.WMP_status.memory_slot_list = [memory_slot_info_t() for i in range(self.WMP_status.memory_slot_number)]
+        self.executionEngine = executionEngine
+
+    @wishful_module.on_start()
+    def start_WMP_module(self):
+        self.log.info("Start WMP agent".format())
+
+        if self.executionEngine == "factory" :
+            args = {'execution_engine' : ['../../../agent_modules/wifi_wmp/execution_engine/factory'] }
+            rvalue = self.install_execution_engine(args)
+            self.log.debug('Ret value of blocking call is %s' % str(rvalue))
+
+        if self.executionEngine == "wmp" :
+            args = {'execution_engine' : ['../../../agent_modules/wifi_wmp/execution_engine/wmp'] }
+            rvalue = self.install_execution_engine(args)
+            self.log.debug('Ret value of blocking call is %s' % str(rvalue))
+
+        args = {'interface' : 'wlan0', 'operation' : ['module'] }
+        rvalue = self.init_test(args)
+        self.log.debug('Ret value of blocking call is %s' % str(rvalue))
+
 
     """
     UPI_M implementation
     """
 
-    """
-    UPI_M implementation
-    """
-
-    @wishful_module.bind_function(upis.wmp.radio.install_execution_engine)
+    #@wishful_module.bind_function(upis.wmp.radio.install_execution_engine)
     def install_execution_engine(self, myargs):
         execution_engine_value = None
         module_value = None
@@ -137,7 +155,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
 
         return True
 
-    @wishful_module.bind_function(upis.wmp.radio.init_test)
+    #@wishful_module.bind_function(upis.wmp.radio.init_test)
     def init_test(self, myargs):
         import subprocess
         self.log.warning('init_test(): %s' % str(myargs) )
@@ -148,23 +166,42 @@ class WmpModule(wishful_module_wifi.WifiModule):
                 self.log.debug('key: %s' % str(key[ii]) )
 
                 if key[ii] == "module":
+                    #check if hostapd running
+                    cmd_str = 'ps aux | grep hostapd | wc -l'
+                    cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
+                    cmd_output = cmd_output.decode('ascii')
+                    flow_info_lines = cmd_output.rstrip().split('\n')
+                    if (int(flow_info_lines[0])>2):
+                        #kill hostapd
+                        cmd_str = 'sudo killall -9 hostapd'
+                        cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
+
+                    #check if b43 module running
                     cmd_str = 'lsmod | grep b43 | wc -l'
                     cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
-                    time.sleep(1)
-                    if (int(cmd_output)>0):
+                    cmd_output = cmd_output.decode('ascii')
+                    flow_info_lines = cmd_output.rstrip().split('\n')
+                    #self.log.debug('cmd_output 1 : %s' % flow_info_lines[0])
+                    time.sleep(0.5)
+                    if (int(flow_info_lines[0])>0):
+                        #kill b43 module
                         cmd_str = 'rmmod b43'
                         cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
-                    time.sleep(1)
+                        cmd_output = cmd_output.decode('ascii')
+                        #self.log.debug('cmd_output 2 : %s' % cmd_output)
+                        time.sleep(0.5)
+
+                    #insert b43 module
                     cmd_str = 'modprobe b43 qos=0 && sleep 0.5 && ifconfig wlan0 192.168.0.3'
                     cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
-                    self.log.debug('cmd_output: %s' % cmd_output)
+                    #self.log.debug('cmd_output 3: %s' % cmd_output)
 
-                if key[ii] == "association":
-                    value_1 = myargs['ssid']
-                    value_2 = myargs['ip_address']
-                    cmd_str = '../../../agent_modules/wifi_wmp/network_script/association.sh ' + value_1[ii] + ' ' +value_2[ii]
-                    subprocess.call(cmd_str, shell=True)
-                    self.log.info('------------------------------ end STA association ------------------------')
+                # if key[ii] == "association":
+                #     value_1 = myargs['ssid']
+                #     value_2 = myargs['ip_address']
+                #     cmd_str = '../../../agent_modules/wifi_wmp/network_script/association.sh ' + value_1[ii] + ' ' +value_2[ii]
+                #     subprocess.call(cmd_str, shell=True)
+                #     self.log.info('------------------------------ end STA association ------------------------')
 
                 if key[ii] == "monitor":
                     value_1 = myargs['channel']
@@ -172,24 +209,24 @@ class WmpModule(wishful_module_wifi.WifiModule):
                     subprocess.call(cmd_str, shell=True)
                     self.log.info('------------------------------ end STA monitor ------------------------')
 
-                if key[ii] == "create-network":
-                    value_1 = myargs['ssid']
-                    value_2 = myargs['ip_address']
-
-                    cmd_str = 'cat ../../../agent_modules/wifi_wmp/network_script/hostapd2_start.conf > ../../../agent_modules/wifi_wmp/network_script/hostapd2.conf'
-                    #self.log.debug('cmd_str: %s' % cmd_str)
-                    subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
-                    time.sleep(1)
-                    cmd_str = 'echo ssid=' + value_1[ii] + ' >>  ../../../agent_modules/wifi_wmp/network_script/hostapd2.conf '
-                    #self.log.debug('cmd_str: %s' % cmd_str)
-
-                    subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
-                    time.sleep(1)
-                    cmd_str = '../../../agent_modules/wifi_wmp/network_script/create_network.sh '  + value_2[ii]
-                    #self.log.debug('cmd_str: %s' % cmd_str)
-
-                    subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
-                    self.log.info('------------------------------ end AP CONFIGURATION ------------------------')
+                # if key[ii] == "create-network":
+                #     value_1 = myargs['ssid']
+                #     value_2 = myargs['ip_address']
+                #
+                #     cmd_str = 'cat ../../../agent_modules/wifi_wmp/network_script/hostapd2_start.conf > ../../../agent_modules/wifi_wmp/network_script/hostapd2.conf'
+                #     #self.log.debug('cmd_str: %s' % cmd_str)
+                #     subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
+                #     time.sleep(1)
+                #     cmd_str = 'echo ssid=' + value_1[ii] + ' >>  ../../../agent_modules/wifi_wmp/network_script/hostapd2.conf '
+                #     #self.log.debug('cmd_str: %s' % cmd_str)
+                #
+                #     subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
+                #     time.sleep(1)
+                #     cmd_str = '../../../agent_modules/wifi_wmp/network_script/create_network.sh '  + value_2[ii]
+                #     #self.log.debug('cmd_str: %s' % cmd_str)
+                #
+                #     subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
+                #     self.log.info('------------------------------ end AP CONFIGURATION ------------------------')
 
         except B43Exception as e:
             self.log.debug('initTest raised an exception:  %s' % e)
@@ -1393,7 +1430,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
 #         ip = ni.ifaddresses(iface)[2][0]['addr']
 #         return ip
 #
-    @wishful_module.bind_function(upis.wmp.radio.get_iface_ip_addr)
+    @wishful_module.bind_function(upis.net.get_iface_ip_addr)
     def get_iface_ip_addr(self, iface):
         import netifaces as ni
         #this function need the interface UP (modprobe b43)
