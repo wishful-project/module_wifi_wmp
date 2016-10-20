@@ -97,15 +97,9 @@ class WmpModule(wishful_module_wifi.WifiModule):
     def start_WMP_module(self):
         self.log.info("Start WMP agent".format())
 
-        if self.executionEngine == "factory" :
-            args = {'execution_engine' : ['../../../agent_modules/wifi_wmp/execution_engine/factory'] }
-            rvalue = self.install_execution_engine(args)
-            self.log.debug('Ret value of blocking call is %s' % str(rvalue))
-
-        if self.executionEngine == "wmp" :
-            args = {'execution_engine' : ['../../../agent_modules/wifi_wmp/execution_engine/wmp'] }
-            rvalue = self.install_execution_engine(args)
-            self.log.debug('Ret value of blocking call is %s' % str(rvalue))
+        args = {'execution_engine' : ['../../../agent_modules/wifi_wmp/execution_engine/' + self.executionEngine] }
+        rvalue = self.install_execution_engine(args)
+        self.log.debug('Ret value of blocking call is %s' % str(rvalue))
 
         args = {'interface' : 'wlan0', 'operation' : ['module'] }
         rvalue = self.init_test(args)

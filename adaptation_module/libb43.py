@@ -35,7 +35,7 @@ librt = ctypes.CDLL('librt.so.1', use_errno=True)
 clock_gettime = librt.clock_gettime
 clock_gettime.argtypes = [ctypes.c_int, ctypes.POINTER(timespec)]
 
-def monotonic_time(self):
+def monotonic_time():
 	t = timespec()
 	if clock_gettime(CLOCK_MONOTONIC_RAW , ctypes.pointer(t)) != 0:
 		errno_ = ctypes.get_errno()
