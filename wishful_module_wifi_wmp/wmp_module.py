@@ -42,7 +42,6 @@ LOCAL_MAC_PROCESSOR_CTRL_PORT = 1217
 
 
 
-
 """ Store the current radio program information for WMP """
 class memory_slot_info_t:
 
@@ -93,11 +92,25 @@ class WmpModule(wishful_module_wifi.WifiModule):
         self.WMP_status.memory_slot_list = [memory_slot_info_t() for i in range(self.WMP_status.memory_slot_number)]
         self.executionEngine = executionEngine
 
+        self.relative_path = "../"
+
+
     @wishful_module.on_start()
     def start_WMP_module(self):
         self.log.info("Start WMP agent".format())
 
-        args = {'execution_engine' : ['../../../agent_modules/wifi_wmp/execution_engine/' + self.executionEngine] }
+        current_path=os.getcwd()
+        current_list_path=current_path.split('/')
+        ii=0
+        path_position=len(current_list_path)-1
+        for ii in range(1, 20):
+            if current_list_path[path_position] == "examples":
+                break
+            self.relative_path = self.relative_path + "../"
+            path_position -= 1
+
+
+        args = {'execution_engine' : [self.relative_path + 'agent_modules/wifi_wmp/execution_engine/' + self.executionEngine] }
         rvalue = self.install_execution_engine(args)
         self.log.debug('Ret value of blocking call is %s' % str(rvalue))
 
@@ -117,7 +130,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
         execution_engine_value = myargs['execution_engine']
         execution_engine_value = execution_engine_value[0]
 
-        self.log.warning('install_execution_engine(): %s' % (str(execution_engine_value)))
+        #self.log.warning('install_execution_engine(): %s' % (str(execution_engine_value)))
 
         dst = ""
         module_dst = "/lib/modules/3.13.11-ckt19-custom/kernel/drivers/net/wireless/b43/"
@@ -190,37 +203,11 @@ class WmpModule(wishful_module_wifi.WifiModule):
                     cmd_output = subprocess.check_output(cmd_str, shell=True, stderr=subprocess.STDOUT)
                     #self.log.debug('cmd_output 3: %s' % cmd_output)
 
-                # if key[ii] == "association":
-                #     value_1 = myargs['ssid']
-                #     value_2 = myargs['ip_address']
-                #     cmd_str = '../../../agent_modules/wifi_wmp/network_script/association.sh ' + value_1[ii] + ' ' +value_2[ii]
-                #     subprocess.call(cmd_str, shell=True)
-                #     self.log.info('------------------------------ end STA association ------------------------')
-
                 if key[ii] == "monitor":
                     value_1 = myargs['channel']
-                    cmd_str = '../../../agent_modules/wifi_wmp/network_script/setup_monitor.sh ' + value_1[ii]
+                    cmd_str = self.relative_path  + 'agent_modules/wifi_wmp/network_script/setup_monitor.sh ' + value_1[ii]
                     subprocess.call(cmd_str, shell=True)
                     self.log.info('------------------------------ end STA monitor ------------------------')
-
-                # if key[ii] == "create-network":
-                #     value_1 = myargs['ssid']
-                #     value_2 = myargs['ip_address']
-                #
-                #     cmd_str = 'cat ../../../agent_modules/wifi_wmp/network_script/hostapd2_start.conf > ../../../agent_modules/wifi_wmp/network_script/hostapd2.conf'
-                #     #self.log.debug('cmd_str: %s' % cmd_str)
-                #     subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
-                #     time.sleep(1)
-                #     cmd_str = 'echo ssid=' + value_1[ii] + ' >>  ../../../agent_modules/wifi_wmp/network_script/hostapd2.conf '
-                #     #self.log.debug('cmd_str: %s' % cmd_str)
-                #
-                #     subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
-                #     time.sleep(1)
-                #     cmd_str = '../../../agent_modules/wifi_wmp/network_script/create_network.sh '  + value_2[ii]
-                #     #self.log.debug('cmd_str: %s' % cmd_str)
-                #
-                #     subprocess.Popen(cmd_str, shell=True, stderr=subprocess.STDOUT)
-                #     self.log.info('------------------------------ end AP CONFIGURATION ------------------------')
 
         except B43Exception as e:
             self.log.debug('initTest raised an exception:  %s' % e)
@@ -244,7 +231,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
         time.sleep(1)
         #self.log.debug('output %s', command)
 
-        command = "../../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager --get-interface-name"
+        command = self.relative_path + 'agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager --get-interface-name'
         nl_output = ""
 
         try:
@@ -282,7 +269,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
         #get available engines
         exec_engine_current_list_name = []
         exec_engine_current_list_pointer = []
-        with open('../../../agent_modules/wifi_wmp/wmp_repository/execution_engine_repository.csv') as csvfile:
+        with open( self.relative_path + 'agent_modules/wifi_wmp/wmp_repository/execution_engine_repository.csv') as csvfile:
             reader = csv.DictReader(csvfile)
 
             for row in reader:
@@ -300,7 +287,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
         #get available repository
         radio_prg_current_list_name = []
         radio_prg_current_list_pointer = []
-        with open('../../../agent_modules/wifi_wmp/wmp_repository/radio_program_repository.csv') as csvfile:
+        with open( self.relative_path  + 'agent_modules/wifi_wmp/wmp_repository/radio_program_repository.csv') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 #filter for WMP platform
@@ -429,10 +416,9 @@ class WmpModule(wishful_module_wifi.WifiModule):
         return ret_lst
 
     @wishful_module.bind_function(upis.radio.get_running_radio_program)
-    def get_running_radio_program(self, myargs):
+    def get_running_radio_program(self):
         self.log.warning('get_running_radio_program(): ')
-        interface = myargs['interface']
-        command = '../../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -v'
+        command = self.relative_path + 'agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -v'
         nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
         nl_output = nl_output.decode('ascii')
         flow_info_lines = nl_output.rstrip().split('\n')
@@ -454,7 +440,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
     #     if position == None :
     #         position = 1
     #
-    #     command = '../../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -l ' + position + ' -m ' + radio_program_path
+    #     command = self.relative_path + 'agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -l ' + position + ' -m ' + radio_program_path
     #     #self.log.debug('output %s ', command)
     #
     #     nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
@@ -547,7 +533,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
         #handled only if operation number is great of 3
         self.log.debug('operation : %d - radio_program_name = %s - position = %d - radio_program_path = %s' %  (operation, radio_program_name, position, radio_program_path) )
         if operation > 3 :
-            command = '../../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -l ' + str(position) + ' -m ' + radio_program_path
+            command = self.relative_path + 'agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -l ' + str(position) + ' -m ' + self.relative_path + radio_program_path
             nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
             nl_output = nl_output.decode('ascii')
             self.log.debug(' bytecode-manager command result : %s' % nl_output)
@@ -559,7 +545,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
                 self.WMP_status.memory_slot_list[(position-1)].radio_program_pointer = radio_program_path
 
         """ radio program activation """
-        command = '../../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -a ' + str(position)
+        command = self.relative_path + 'agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -a ' + str(position)
         nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
         nl_output = nl_output.decode('ascii')
         self.log.debug(' bytecode-manager command result : %s' % nl_output)
@@ -574,7 +560,7 @@ class WmpModule(wishful_module_wifi.WifiModule):
     def deactivate_radio_program(self, myargs):
         """ radio program activation """
         radio_program_name = myargs['radio_program_name']
-        command = '../../../agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -d ' + radio_program_name
+        command = self.relative_path + 'agent_modules/wifi_wmp/adaptation_module/src/bytecode-manager -d ' + radio_program_name
         nl_output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
         nl_output = nl_output.decode('ascii')
         flow_info_lines = nl_output.rstrip().split('\n')
