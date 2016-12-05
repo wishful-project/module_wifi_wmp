@@ -7,14 +7,8 @@ import subprocess
 import zmq
 import time
 import platform
-import numpy as np
-import iptc
 import csv
 import shutil
-
-
-from pytc.TrafficControl import TrafficControl
-
 
 import wishful_module_wifi
 import wishful_upis as upis
@@ -744,6 +738,20 @@ class WmpModule(wishful_module_wifi.WifiModule):
                 microcode_monitor = True
             if key[ii] == UPI_R.REGISTER_2:
                 microcode_monitor = True
+            if key[ii] == UPI_R.COUNT_SLOT:
+                microcode_monitor = True
+            if key[ii] == UPI_R.PACKET_TO_TRANSMIT:
+                microcode_monitor = True
+            if key[ii] == UPI_R.MY_TRANSMISSION:
+                microcode_monitor = True
+            if key[ii] == UPI_R.SUCCES_TRANSMISSION:
+                microcode_monitor = True
+            if key[ii] == UPI_R.OTHER_TRANSMISSION:
+                microcode_monitor = True
+            if key[ii] == UPI_R.BAD_RECEPTION:
+                microcode_monitor = True
+            if key[ii] == UPI_R.BUSY_SLOT:
+                microcode_monitor = True
 
         if  microcode_monitor:
             b43 = B43(self.b43_phy)
@@ -837,9 +845,35 @@ class WmpModule(wishful_module_wifi.WifiModule):
                 ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.PROCEDURE_REGISTER_1))
             if key[ii] == UPI_R.REGISTER_2:
                 ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.PROCEDURE_REGISTER_2))
+            if key[ii] == UPI_R.COUNT_SLOT:
+                ret_lst.append(b43.shmRead16(b43.B43_SHM_REGS, b43.COUNT_SLOT))
+            if key[ii] == UPI_R.PACKET_TO_TRANSMIT:
+               ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.PACKET_TO_TRANSMIT))
+            if key[ii] == UPI_R.MY_TRANSMISSION:
+               ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.MY_TRANSMISSION))
+            if key[ii] == UPI_R.SUCCES_TRANSMISSION:
+               ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.SUCCES_TRANSMISSION))
+            if key[ii] == UPI_R.OTHER_TRANSMISSION:
+               ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.OTHER_TRANSMISSION))
+            if key[ii] == UPI_R.BAD_RECEPTION:
+               ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.BAD_RECEPTION))
+            if key[ii] == UPI_R.BUSY_SLOT:
+               ret_lst.append(b43.shmRead16(b43.B43_SHM_SHARED, b43.BUSY_SLOT))
+
 
         self.log.debug('call result: %s' % ret_lst)
         return ret_lst
+
+
+    @wishful_module.bind_function(upis.radio.get_measurements_periodic)
+    def get_measurements_periodic(self, myargs, collect_period, report_period, num_iterations, report_callback):
+        key = myargs['measurements']
+        interface = myargs['interface']
+        self.log.debug('get_measurements_periodic(): %s len : %d' % (str(key), len(key)))
+        return self.get_measurements(myargs)
+
+
+
 #
 #
 #

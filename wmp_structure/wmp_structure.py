@@ -256,3 +256,24 @@ class UPI_R():
     REGISTER_1 = "REGISTER_1"
     REGISTER_2 = "REGISTER_2"
 
+    COUNT_SLOT = "COUNT_SLOT"
+    "number or current slot, incremental from the interface started"
+
+    PACKET_TO_TRANSMIT = "PACKET_TO_TRANSMIT"
+    "8 bit register that give information about last 8 time slot, any bit in register get information about the presence of packet in queue for the correspondent time slot"
+
+    MY_TRANSMISSION = "MY_TRANSMISSION"
+    "8 bit register that give information about last 8 time slot, any bit in register get information about of attempt transmission in the correspondent time slot"
+
+    SUCCES_TRANSMISSION = "SUCCES_TRANSMISSION"
+    "8 bit register that give information about last 8 time slot, any bit in register get information about the success of transmission in the correspondent time slot"
+
+    OTHER_TRANSMISSION = "OTHER_TRANSMISSION"
+    "8 bit register that give information about last 8 time slot, any bit in register get information about other transmission in the correspondent time slot"
+
+    BAD_RECEPTION = "BAD_RECEPTION"
+    "8 bit register that give information about last 8 time slot, any bit in register get information about the presence of a bad receiption in the correspondent time slot"
+
+    BUSY_SLOT = "BUSY_SLOT"
+    "8 bit register that give information about last 8 time slot, any bit in register get information about the busy in the correspondent time slot"
+
