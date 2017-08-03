@@ -73,6 +73,27 @@ uint16_t read16(struct debugfs_file * df, int reg){
 }
 
 
+uint32_t read32(struct debugfs_file * df, int reg){
+
+	/* """Do a 32bit MMIO read""" */
+	char buffer[256];
+	uint32_t ret=0;
+	
+	rewind(df->f_mmio32read);
+	
+	fprintf(df->f_mmio32read, "0x%X",reg);
+	
+	fflush(df->f_mmio32read);
+	
+	rewind(df->f_mmio32read);
+	
+	fscanf(df->f_mmio32read, "%s", buffer);
+	
+	ret=htoi(buffer);
+	
+	return ret;
+}
+
 
 
 void maskSet16(struct debugfs_file * df, int reg, int mask, int set){
@@ -290,11 +311,25 @@ void getLinkRegs(struct debugfs_file * df){
 }
 
 void getTSFRegs(struct debugfs_file * df, uint64_t * tsf){
-	uint64_t tmp;
-	uint16_t v0, v1, v2, v3;
-        uint16_t test1, test2, test3;
-	do {
-                        v3 = read16(df, B43_MMIO_TSF_3);
+	int revision = 5;
+	if (revision >= 3) {
+                 uint32_t low, high, high2;
+                 do {
+                         high = read32(df, B43_MMIO_REV3PLUS_TSF_HIGH);
+                         low = read32(df, B43_MMIO_REV3PLUS_TSF_LOW);
+                         high2 = read32(df, B43_MMIO_REV3PLUS_TSF_HIGH);
+                 } while (high != high2);
+ 
+                 *tsf = high;
+                 *tsf <<= 32;
+                 *tsf |= low;
+         } else {
+		uint64_t tmp;
+		uint16_t v0, v1, v2, v3;
+		uint16_t test1, test2, test3;
+	
+                 do {
+			v3 = read16(df, B43_MMIO_TSF_3);
                         v2 = read16(df, B43_MMIO_TSF_2);
                         v1 = read16(df, B43_MMIO_TSF_1);
                         v0 = read16(df, B43_MMIO_TSF_0);
@@ -302,19 +337,81 @@ void getTSFRegs(struct debugfs_file * df, uint64_t * tsf){
                         test3 = read16(df, B43_MMIO_TSF_3);
                         test2 = read16(df, B43_MMIO_TSF_2);
                         test1 = read16(df, B43_MMIO_TSF_1);
-        } while (v3 != test3 || v2 != test2 || v1 != test1);
-        *tsf = v3;
-        *tsf <<= 48;
-        tmp = v2;
-        tmp <<= 32;
-        *tsf |= tmp;
-        tmp = v1;
-        tmp <<= 16;
-        *tsf |= tmp;
-        *tsf |= v0;
+		   
+		} while (v3 != test3 || v2 != test2 || v1 != test1);
+ 
+                 *tsf = v3;
+                 *tsf <<= 48;
+                 tmp = v2;
+                 tmp <<= 32;
+                 *tsf |= tmp;
+                 tmp = v1;
+                 tmp <<= 16;
+                 *tsf |= tmp;
+                 *tsf |= v0;
+         }
+	
+	
 }
 
 
+void b43_time_lock(struct debugfs_file * df)
+{
+         uint32_t macctl;
+ 
+         macctl = read32(df, B43_MMIO_MACCTL);
+         macctl |= B43_MACCTL_TBTTHOLD;
+         write32(df, B43_MMIO_MACCTL, macctl);
+         /* Commit the write */
+         read32(df, B43_MMIO_MACCTL);
+}
+ 
+void b43_time_unlock(struct debugfs_file * df)
+{
+         uint32_t macctl;
+ 
+         macctl = read32(df, B43_MMIO_MACCTL);
+         macctl &= ~B43_MACCTL_TBTTHOLD;
+         write32(df, B43_MMIO_MACCTL, macctl);
+         /* Commit the write */
+         read32(df, B43_MMIO_MACCTL);
+}
+
+void b43_tsf_write_locked(struct debugfs_file * df, uint64_t tsf)
+{
+/* Be careful with the in-progress timer.
+* First zero out the low register, so we have a full
+* register-overflow duration to complete the operation.
+*/
+  int revision = 5;
+  if (revision >= 3) {
+    uint32_t lo = (tsf & 0x00000000FFFFFFFFULL);
+    uint32_t hi = (tsf & 0xFFFFFFFF00000000ULL) >> 32;
+
+    write32(df, B43_MMIO_REV3PLUS_TSF_LOW, 0);
+    write32(df, B43_MMIO_REV3PLUS_TSF_HIGH, hi);
+    write32(df, B43_MMIO_REV3PLUS_TSF_LOW, lo);
+  } else {
+    uint16_t v0 = (tsf & 0x000000000000FFFFULL);
+    uint16_t v1 = (tsf & 0x00000000FFFF0000ULL) >> 16;
+    uint16_t v2 = (tsf & 0x0000FFFF00000000ULL) >> 32;
+    uint16_t v3 = (tsf & 0xFFFF000000000000ULL) >> 48;
+
+    write16(df, B43_MMIO_TSF_0, 0);
+    write16(df, B43_MMIO_TSF_3, v3);
+    write16(df, B43_MMIO_TSF_2, v2);
+    write16(df, B43_MMIO_TSF_1, v1);
+    write16(df, B43_MMIO_TSF_0, v0);
+  }
+}
+
+
+void b43_tsf_write(struct debugfs_file * df, uint64_t tsf)
+{
+         b43_time_lock(df);
+         b43_tsf_write_locked(df, tsf);
+         b43_time_unlock(df);
+}
 
 void getOffsetRegs(struct debugfs_file * df){
 /*"""Returns an array of 7 ints. One for each Offset Register."""*/

@@ -35,6 +35,8 @@ struct options{
 	char * zigbee_rx;
 	char * slot_time_value;
 	char * change_param;
+	char * set_tdma_mask;
+	char * set_tsf;
 	char * get_parameter;
 	char * get_interface_name;
 	

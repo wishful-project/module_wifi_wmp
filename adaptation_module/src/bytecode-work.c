@@ -488,6 +488,110 @@ void change_parameter(struct debugfs_file * df,  struct options * opt){
 }
 
 
+void set_tdma_mask(struct debugfs_file * df,  struct options * opt){
+	
+	/*
+	PRM_9_HI
+	#define		TIME_SLOT_POSITION_MASK_LO_OFFSET		0x0F
+	#define		TIME_SLOT_POSITION_MASK_LO(param_addr_bytecode)	(SHM(param_addr_bytecode) + 0x0F)		
+
+	PRM_9_LO
+	#define		TIME_SLOT_POSITION_MASK_HI_OFFSET		0x10
+	#define		TIME_SLOT_POSITION_MASK_HI(param_addr_bytecode)	(SHM(param_addr_bytecode) + 0x10)		
+	*/
+	
+	/* check string format */
+	/* 1010101010 - must been 10 chars in (1,0)*/
+	int i=0;
+	int mask_correct=1;
+	
+	printf("%s - strlen((opt->set_tdma_mask) %d\n", opt->set_tdma_mask, strlen(opt->set_tdma_mask));
+	
+	if (strlen(opt->set_tdma_mask)==10)
+	{
+	  for(i=0; i++; i<10)
+	  {
+	    printf("%c \n", opt->set_tdma_mask[i]);
+	    if( opt->set_tdma_mask[i]!='1' & opt->set_tdma_mask[i]!='0' )
+	    {
+		mask_correct=0;
+		break;
+	    }
+	  }
+	}
+	else
+	{
+	    mask_correct=0;
+	}
+	
+	if(mask_correct==0){
+	  printf("TDMA mask must been a string of 10 characters in (1,0), binary format\n eg. bytecode-manager --set-tdma-mask 0110011001\n");
+	}
+	else
+	{
+	  
+	  int val_to_set = 0;
+	  char * pEnd;
+	  val_to_set = strtol (opt->set_tdma_mask, &pEnd,2);
+
+	  /*
+	  PRM_9_HI
+	  #define		TIME_SLOT_POSITION_MASK_LO_OFFSET		0x0F
+	  #define		TIME_SLOT_POSITION_MASK_LO(param_addr_bytecode)	(SHM(param_addr_bytecode) + 0x0F)		
+
+	  PRM_9_LO
+	  #define		TIME_SLOT_POSITION_MASK_HI_OFFSET		0x10
+	  #define		TIME_SLOT_POSITION_MASK_HI(param_addr_bytecode)	(SHM(param_addr_bytecode) + 0x10)		
+	  */
+	  
+	  int val_to_set_lo = val_to_set & 0xFFFF;
+	  int val_to_set_hi = (val_to_set >> 16) & 0xFFFF;
+	  
+	  int param_to_set_lo = 0x0F*2;
+	  int param_to_set_hi = 0x10*2;
+	  
+	    
+	  int gpr_byte_code_value = shmRead16(df, B43_SHM_REGS, BYTECODE_ADDR_OFFSET);
+	  int active_slot=0;
+
+          if (gpr_byte_code_value == PARAMETER_ADDR_OFFSET_BYTECODE_1)
+                active_slot = 1;
+          else{
+	    if (gpr_byte_code_value == PARAMETER_ADDR_OFFSET_BYTECODE_2)
+                active_slot = 2;
+            else {
+		printf("bytecode position reading fault\n");
+		return;
+	    }
+	  }
+	  
+	  if(val_to_set_lo < 65536 & val_to_set_hi < 65536)
+	  {  
+		  if(active_slot == 1){
+			  printf("byte-code '1' \n");
+			  param_to_set_lo = param_to_set_lo + PARAMETER_ADDR_BYTECODE_1;
+			  param_to_set_hi = param_to_set_hi + PARAMETER_ADDR_BYTECODE_1;
+		  }
+		  else{
+			  if(active_slot== 2){
+				  printf("byte-code '2' \n");
+				  param_to_set_lo = param_to_set_lo + PARAMETER_ADDR_BYTECODE_2;
+				  param_to_set_hi = param_to_set_hi + PARAMETER_ADDR_BYTECODE_2;
+			  }
+			  else{
+				  printf("bytecode must be 1 or 2\n");
+				  return;
+			  }
+		  }
+		  //printf("0 %x -1 %x - 2 %x - 3 %x - 4 %x\n", val_to_set, val_to_set_lo, val_to_set_hi, param_to_set_lo, param_to_set_hi);
+		  //printf("write to address %x \n",param_to_set);
+		  shmWrite16(df, B43_SHM_SHARED, param_to_set_lo, val_to_set_lo);
+		  shmWrite16(df, B43_SHM_SHARED, param_to_set_hi, val_to_set_hi);
+	  }
+	  printf("Insert value successful\n");
+	}
+}
+
 
 
 

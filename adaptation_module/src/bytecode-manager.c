@@ -76,13 +76,20 @@ int main(int argc, char * argv[])
 			}
 			
 			//init broadcom interface
-			init_file(&df); // da far fare solo se si è un modalità OFFLINE o Server
+			init_file(&df); // da far fare solo se si ï¿½ un modalitï¿½ OFFLINE o Server
 			
 			
 			if (strcmp(current_options.change_param,""))
 			{
 			  printf("Change bytecode parameter\n");
 			  change_parameter(&df, &current_options);
+			  break;
+			}
+			
+			if (strcmp(current_options.set_tdma_mask,""))
+			{
+			  printf("Change TDMA MASK\n");
+			  set_tdma_mask(&df, &current_options);
 			  break;
 			}
 			
@@ -132,10 +139,35 @@ int main(int argc, char * argv[])
 			/* DUMP TSF */
 			if(!strcmp(current_options.reg_share,"4")){
 				uint64_t tsf;
+
+				int sample = 0;
+				uint64_t last_tsf = 0;
+				
+				/*
+				while(sample < 500000){
+					getTSFRegs(&df, &tsf);
+					printf("TSF registers dump (difference): %f ---- %f\n",(double)tsf, (double)(tsf-last_tsf));
+					last_tsf = tsf;
+					usleep(16000);
+					sample++;
+				}
+				*/
 				getTSFRegs(&df, &tsf);
-				printf("TSF registers dump %f\n",(double)tsf);
+				printf("TSF registers dump : %f \n",(double)tsf);
 				break;
 			}
+			/*WRITE TSF*/
+			if (strcmp(current_options.set_tsf,""))
+			{
+				int tsf_int = atoi(current_options.set_tsf);
+				uint64_t tsf = tsf_int;
+				printf("write TSF on board : %f \n",(double)tsf);
+				b43_tsf_write(&df, tsf);
+				break;
+			}
+			
+			
+			
 
 			/* READ SHM ZIGBEE RX*/
 			if(strcmp(current_options.zigbee_rx,"")){
@@ -306,7 +338,7 @@ int main(int argc, char * argv[])
 			    printf("Cache directory not found - created now\n");
 			}
 
-			init_file(&df); // da far fare solo se si è un modalità OFFLINE o Server
+			init_file(&df); // da far fare solo se si ï¿½ un modalitï¿½ OFFLINE o Server
 
 			printf("Starting bytecode Manager in SERVER mode, listen on port %s\n",current_options.PORT);
 			
@@ -356,6 +388,7 @@ void check_association(){
 
 void usage(void)
 {
+	printf("%s",STARTUP_LOGO);
 	printf("%s",usageMenu);
 	printf("%s",usageExamples);
 }
@@ -400,6 +433,8 @@ void init_options(struct options * current_options){
 	current_options->change_param="";
 	current_options->get_parameter="";
 	current_options->get_interface_name="";
+	current_options->set_tdma_mask="";
+	current_options->set_tsf="";
 
 	
 	
@@ -460,9 +495,9 @@ void parseArgs(int argc, char **argv, struct options * current_options)
     '9' 
     'i' 
     'o' 
-    'ò' 
-    'à' 
-    'ì' 
+    'ï¿½' 
+    'ï¿½' 
+    'ï¿½' 
     'k' 
 */
 
@@ -481,12 +516,14 @@ void parseArgs(int argc, char **argv, struct options * current_options)
 		  {"auto-active",		required_argument,	0,  	'9' },
 		  {"input",			required_argument, 	0,  	'i' },
 		  {"output",			required_argument, 	0,  	'o' },
-		  {"write-reg-mem",		required_argument, 	0,  	'ò' },
-		  {"zigbee-rx",			required_argument, 	0,  	'à' },
-		  {"read-slot",			required_argument, 	0,  	'ì' },
+		  {"write-reg-mem",		required_argument, 	0,  	'Ã ' },
+		  {"zigbee-rx",			required_argument, 	0,  	'Ã¨' },
+		  {"read-slot",			required_argument, 	0,  	'Ã¬' },
 		  {"modify-parameter",		required_argument, 	0,  	'k' },
 		  {"get-parameter",		required_argument, 	0,  	'j' },
-		  {"get-interface-name",	no_argument,	 	0,  	'è' },
+		  {"get-interface-name",	no_argument,	 	0,  	'Ã²' },
+		  {"set-tdma-mask",		required_argument,	0,  	'Ã¹' },
+		  {"set-tsf",			required_argument,	0,  	'#' },
 		  {0,				0,			0,	 0   }
 	};
 	
@@ -680,7 +717,7 @@ void parseArgs(int argc, char **argv, struct options * current_options)
 			current_options->write_frame = "1";
 			break;
 			
-		  case 'ò':
+		  case 'Ã ':
 			current_options->other_option = "1";
 			break;
 		  
@@ -688,7 +725,15 @@ void parseArgs(int argc, char **argv, struct options * current_options)
 			current_options->change_param = optarg;
 			break;
 		  
-		  case 'è':
+		  case 'Ã¹':
+			current_options->set_tdma_mask = optarg;
+			break;
+		  
+		  case '#':
+			current_options->set_tsf = optarg;
+			break;
+		  
+		  case 'Ã¨':
 			current_options->get_interface_name = "1";
 			break;
 			
@@ -770,12 +815,12 @@ void parseArgs(int argc, char **argv, struct options * current_options)
 			      current_options->auto_active = optarg;
 			      printf("input file %s\n", current_options->auto_active );
 			      break;
-		case 'à':
+		case 'Ã¬':
 			      current_options->zigbee_rx = optarg;
 			      printf("output file %s\n", current_options->zigbee_rx );
 			      break;
 		
-		case 'ì':
+		case 'Ã²':
 			      current_options->slot_time_value = optarg;
 			      printf("output file %s\n", current_options->slot_time_value );
 			      break;
